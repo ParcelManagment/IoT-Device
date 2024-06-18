@@ -54,11 +54,26 @@ void setup()
   // Initialize the serial communication at 115200 baud rate
   Serial.begin(115200);
   // Wait for the serial port to connect (useful for some boards)
-  while (!Serial)
+  while (!Serial) //*************Remove this while loop from final deployment. */
   {
     ; // wait for serial port to connect. Needed for native USB
   }
   Serial.println("Serial Monitor Test: Hello, World!");
+
+  Wire.begin();
+  esp_task_wdt_init(10, true); // 10 seconds timeout
+  esp_task_wdt_add(NULL);      // Add current thread ro WDt
+
+  if (!initDisplay())
+  {
+    esp_task_wdt_reset(); // reset the watchdog timout
+    for (;;)
+      ; // Halt the program or implement further error handling
+  }
+
+  display.display();
+  delay(2000); // Pause for 2 seconds
+  display.clearDisplay();
 }
 
 void loop()
