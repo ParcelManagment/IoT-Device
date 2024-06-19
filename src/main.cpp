@@ -6,21 +6,21 @@
 
 // OLED display dimensions
 #define SCREEN_WIDTH 128
-#define SCREEN_HEIGHT 64    // or 32 for smaller display ****should be chnage.
-#define OLED_RESET -1       // Reset pin # (or -1 if sharing Arduino reset pin)
-#define SCREEN_ADDRESS 0x3C // Address found using I2C scanner **** can be 0x3D, so switch if it isn't working.
+#define SCREEN_HEIGHT 64 // or 32 for smaller display
+#define OLED_RESET -1    // Reset pin # (or -1 if sharing Arduino reset pin)
 
 // LED Indicators
-#define DisplayErrorLED 12 // Indicate the errors occured on the display
+#define DisplayErrorLED 12 // Indicate the errors occurred on the display
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET); // Object in Adafruit_SSD1306 class
 
 // I2C Scanner Function
-void scanI2C()
+int scanI2C()
 {
   Serial.println("Scanning I2C bus...");
-  byte error, address;  //two variables of type byte (an 8-bit unsigned integer). 
+  byte error, address; // two variables of type byte (an 8-bit unsigned integer).
   int nDevices = 0;
+  int foundAddress = -1;
   for (address = 1; address < 127; address++)
   {
     Wire.beginTransmission(address);
@@ -33,6 +33,10 @@ void scanI2C()
       Serial.print(address, HEX);
       Serial.println(" !");
       nDevices++;
+      if (address == 0x3C || address == 0x3D)
+      {
+        foundAddress = address;
+      }
     }
     else if (error == 4)
     {
@@ -43,49 +47,54 @@ void scanI2C()
     }
   }
   if (nDevices == 0)
+  {
     Serial.println("No I2C devices found\n");
+    return -1;
+  }
   else
+  {
     Serial.println("done\n");
+    return foundAddress;
+  }
 }
 
 // Function to notify user of an error in OLED display initialization process.
-void notifyUserAboutDisplayError()
+void notifyUserAboutDisplayError(const char *message)
 {
   // Blink an LED to notify the display error & send a message to a connected app
   pinMode(DisplayErrorLED, OUTPUT);
   for (int i = 0; i < 10; i++)
   {
     digitalWrite(DisplayErrorLED, HIGH);
-    Serial.println("Warning: A Error in display Initialization...Check the connections.");
+    Serial.println(message);
     delay(500);
     digitalWrite(DisplayErrorLED, LOW);
     delay(500);
   }
 }
 
-// function for initialize the OLED display with retry mechanism.
-bool initDisplay()
+// Function for initializing the OLED display with retry mechanism.
+bool initDisplay(int screenAddress)
 {
   for (int attempts = 0; attempts < 3; attempts++)
   {
-    if (display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS))
+    if (display.begin(SSD1306_SWITCHCAPVCC, screenAddress))
     {
       Serial.println("Display initialization is successful");
       return true; // initialization is successful.
     }
 
-    notifyUserAboutDisplayError(); // notify about error
+    notifyUserAboutDisplayError("Warning: An error in display Initialization...Check the connections."); // notify about error
     delay(1000);
   }
 
-  Serial.println("Display initialization is failed!");
+  Serial.println("Display initialization has failed!");
   return false; // Initialization failed after 3 attempts
 }
 
-// function For Test OLED Display
+// Function for testing OLED display
 void testDisplay()
 {
-
   String data = "RFID: 12345678\nLocation: XYZ";
   // Update display
   display.clearDisplay();
@@ -110,15 +119,19 @@ void setup()
   Serial.println("Serial Monitor Test: Hello, World!");
 
   Wire.begin();
-  scanI2C(); // Scan for I2C devices
   esp_task_wdt_init(10, true); // 10 seconds timeout
-  esp_task_wdt_add(NULL);      // Add current thread ro WDt
+  esp_task_wdt_add(NULL);      // Add current thread to WDT
 
-  if (!initDisplay())
+  int screenAddress = scanI2C();
+  if (screenAddress == -1 || !initDisplay(screenAddress))
   {
-    esp_task_wdt_reset(); // reset the watchdog timout
+    Serial.println("Initialization failed, entering error loop...");
+    esp_task_wdt_reset(); // reset the watchdog timeout
     for (;;)
-      ; // Halt the program or implement further error handling
+    {
+      notifyUserAboutDisplayError("Warning: An error in display Initialization...Check the connections."); // Notify the user continuously
+      esp_task_wdt_reset();                                                                                // Reset watchdog to prevent system reset
+    }
   }
 
   display.display();
