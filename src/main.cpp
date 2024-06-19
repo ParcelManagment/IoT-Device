@@ -15,6 +15,39 @@
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET); // Object in Adafruit_SSD1306 class
 
+// I2C Scanner Function
+void scanI2C()
+{
+  Serial.println("Scanning I2C bus...");
+  byte error, address;  //two variables of type byte (an 8-bit unsigned integer). 
+  int nDevices = 0;
+  for (address = 1; address < 127; address++)
+  {
+    Wire.beginTransmission(address);
+    error = Wire.endTransmission();
+    if (error == 0)
+    {
+      Serial.print("I2C device found at address 0x");
+      if (address < 16)
+        Serial.print("0");
+      Serial.print(address, HEX);
+      Serial.println(" !");
+      nDevices++;
+    }
+    else if (error == 4)
+    {
+      Serial.print("Unknown error at address 0x");
+      if (address < 16)
+        Serial.print("0");
+      Serial.println(address, HEX);
+    }
+  }
+  if (nDevices == 0)
+    Serial.println("No I2C devices found\n");
+  else
+    Serial.println("done\n");
+}
+
 // Function to notify user of an error in OLED display initialization process.
 void notifyUserAboutDisplayError()
 {
@@ -49,6 +82,22 @@ bool initDisplay()
   return false; // Initialization failed after 3 attempts
 }
 
+// function For Test OLED Display
+void testDisplay()
+{
+
+  String data = "RFID: 12345678\nLocation: XYZ";
+  // Update display
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 0);
+  display.println(data);
+  display.display();
+
+  delay(2000); // Wait before updating again
+}
+
 void setup()
 {
   // Initialize the serial communication at 115200 baud rate
@@ -61,6 +110,7 @@ void setup()
   Serial.println("Serial Monitor Test: Hello, World!");
 
   Wire.begin();
+  scanI2C(); // Scan for I2C devices
   esp_task_wdt_init(10, true); // 10 seconds timeout
   esp_task_wdt_add(NULL);      // Add current thread ro WDt
 
@@ -78,7 +128,6 @@ void setup()
 
 void loop()
 {
-  // Print "Hello, World!" every second
-  Serial.println("Hello, World!");
-  delay(1000); // wait for 1 second
+  esp_task_wdt_reset(); // Reset the watchdog timer periodically
+  testDisplay();        // Run the display function to test
 }
