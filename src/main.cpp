@@ -10,6 +10,11 @@
 #define MODEM_BAUD 9600
 #define MAX_RETRIES 5
 
+// APN details for GPRS connection
+const char apn[] = "your_apn";
+const char user[] = "";
+const char password[] = "";
+
 // Initialize HardwareSerial port
 HardwareSerial modemSerial(2); // Use UART2
 TinyGsm modem(modemSerial);
@@ -31,6 +36,45 @@ bool modemTest()
     Serial.println("No response from modem.");
     return false;
   }
+}
+
+// Function to configure GPRS connection
+bool configureGPRS()
+{
+  Serial.println("Configuring GPRS...");
+
+  // Set the APN
+  modemSerial.print("AT+CSTT=\"");
+  modemSerial.print(apn);
+  modemSerial.print("\",\"");
+  modemSerial.print(user);
+  modemSerial.print("\",\"");
+  modemSerial.print(password);
+  modemSerial.println("\"");
+  if (!modemSerial.find("OK"))
+  {
+    Serial.println("Failed to set APN.");
+    return false;
+  }
+
+  // Bring up the wireless connection
+  modemSerial.println("AT+CIICR");
+  if (!modemSerial.find("OK"))
+  {
+    Serial.println("Failed to bring up wireless connection.");
+    return false;
+  }
+
+  // Get the local IP address
+  modemSerial.println("AT+CIFSR");
+  if (modemSerial.find("ERROR"))
+  {
+    Serial.println("Failed to get IP address.");
+    return false;
+  }
+
+  Serial.println("GPRS connected.");
+  return true;
 }
 
 // Function to indicate modem status with LED
@@ -93,6 +137,33 @@ bool initializeModem()
   return false;
 }
 
+// Function to establish GPRS connection
+bool establishGPRS()
+{
+  for (int attempt = 1; attempt <= MAX_RETRIES; attempt++)
+  {
+    Serial.printf("Attempt %d of %d to configure GPRS...\n", attempt, MAX_RETRIES);
+    if (configureGPRS())
+    {
+      Serial.println("GPRS configured successfully.");
+      return true;
+    }
+    else
+    {
+      Serial.println("Failed to configure GPRS. Re-Trying...!");
+      for (int i = 0; i < 10; i++)
+      {
+        Serial.print(".......");
+        delay(500);
+      }
+      Serial.println("");
+    }
+  }
+
+  Serial.println("GPRS failed to configure after maximum retries.");
+  return false;
+}
+
 void setup()
 {
   // Initialize serial communication for debugging
@@ -112,6 +183,19 @@ void setup()
       indicateStatus(1); // Indicate unable to connect
     }
   }
+
+  // Establish GPRS connection
+  if (!establishGPRS())
+  {
+    Serial.println("GPRS configuration failed. Halting execution.");
+    while (true)
+    {
+      indicateStatus(1); // Indicate unable to connect
+    }
+  }
+
+  Serial.println("Modem initialized and GPRS configured successfully.");
+  indicateStatus(2); // Indicate successfully connected
 }
 
 void loop()
