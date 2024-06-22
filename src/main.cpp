@@ -45,6 +45,40 @@ bool modemTest()
   }
 }
 
+
+
+// Function to indicate status with LEDs using millis for non-blocking delays
+void indicateStatus(int ledPin, int status)
+{
+  unsigned long currentMillis = millis();
+
+  switch (status)
+  {
+  case 0: // Trying to connect (fast blink)
+    if (currentMillis - previousMillis >= intervalFast)
+    {
+      previousMillis = currentMillis;
+      ledState = (ledState == LOW) ? HIGH : LOW;
+      digitalWrite(ledPin, ledState);
+    }
+    break;
+  case 1: // Unable to connect (slow blink)
+    if (currentMillis - previousMillis >= intervalSlow)
+    {
+      previousMillis = currentMillis;
+      ledState = (ledState == LOW) ? HIGH : LOW;
+      digitalWrite(ledPin, ledState);
+    }
+    break;
+  case 2: // Successfully connected (solid on)
+    digitalWrite(ledPin, HIGH);
+    break;
+  default: // Off
+    digitalWrite(ledPin, LOW);
+    break;
+  }
+}
+
 // Function to configure GPRS connection
 bool configureGPRS()
 {
@@ -85,38 +119,6 @@ bool configureGPRS()
 
   Serial.println("GPRS connected.");
   return true;
-}
-
-// Function to indicate status with LEDs using millis for non-blocking delays
-void indicateStatus(int ledPin, int status)
-{
-  unsigned long currentMillis = millis();
-
-  switch (status)
-  {
-  case 0: // Trying to connect (fast blink)
-    if (currentMillis - previousMillis >= intervalFast)
-    {
-      previousMillis = currentMillis;
-      ledState = (ledState == LOW) ? HIGH : LOW;
-      digitalWrite(ledPin, ledState);
-    }
-    break;
-  case 1: // Unable to connect (slow blink)
-    if (currentMillis - previousMillis >= intervalSlow)
-    {
-      previousMillis = currentMillis;
-      ledState = (ledState == LOW) ? HIGH : LOW;
-      digitalWrite(ledPin, ledState);
-    }
-    break;
-  case 2: // Successfully connected (solid on)
-    digitalWrite(ledPin, HIGH);
-    break;
-  default: // Off
-    digitalWrite(ledPin, LOW);
-    break;
-  }
 }
 
 // Function to initialize the modem
