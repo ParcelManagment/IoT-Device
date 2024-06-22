@@ -5,7 +5,9 @@
 #define MODEM_TX 17 // Connect to SIM808 RX
 #define MODEM_RX 16 // Connect to SIM808 TX
 #define MODEM_RST 5 // Optional, connect to SIM808 RST
-#define LED_PIN 2   // LED pin for status indication
+#define LED_MODEM 2 // LED pin for modem status indication
+#define LED_GPS 4   // LED pin for GPS status indication
+#define LED_GPRS 13 // LED pin for GPRS status indication
 #define SERIAL_BAUD 115200
 #define MODEM_BAUD 9600
 #define MAX_RETRIES 5
@@ -18,6 +20,12 @@ const char password[] = "";
 // Initialize HardwareSerial port
 HardwareSerial modemSerial(2); // Use UART2
 TinyGsm modem(modemSerial);
+
+// Timing variables
+unsigned long previousMillis = 0;
+const long intervalFast = 100;  // Interval for fast blinking (milliseconds)
+const long intervalSlow = 1000; // Interval for slow blinking (milliseconds)
+int ledState = LOW;
 
 // Function to test modem communication
 bool modemTest()
@@ -77,25 +85,34 @@ bool configureGPRS()
   return true;
 }
 
-// Function to indicate modem status with LED
-void indicateStatus(int status)
+// Function to indicate status with LEDs using millis for non-blocking delays
+void indicateStatus(int ledPin, int status)
 {
+  unsigned long currentMillis = millis();
+
   switch (status)
   {
   case 0: // Trying to connect (fast blink)
-    digitalWrite(LED_PIN, HIGH);
-    delay(100);
-    digitalWrite(LED_PIN, LOW);
-    delay(100);
+    if (currentMillis - previousMillis >= intervalFast)
+    {
+      previousMillis = currentMillis;
+      ledState = (ledState == LOW) ? HIGH : LOW;
+      digitalWrite(ledPin, ledState);
+    }
     break;
   case 1: // Unable to connect (slow blink)
-    digitalWrite(LED_PIN, HIGH);
-    delay(1000);
-    digitalWrite(LED_PIN, LOW);
-    delay(1000);
+    if (currentMillis - previousMillis >= intervalSlow)
+    {
+      previousMillis = currentMillis;
+      ledState = (ledState == LOW) ? HIGH : LOW;
+      digitalWrite(ledPin, ledState);
+    }
     break;
   case 2: // Successfully connected (solid on)
-    digitalWrite(LED_PIN, HIGH);
+    digitalWrite(ledPin, HIGH);
+    break;
+  default: // Off
+    digitalWrite(ledPin, LOW);
     break;
   }
 }
@@ -114,22 +131,23 @@ bool initializeModem()
   for (int attempt = 1; attempt <= MAX_RETRIES; attempt++)
   {
     Serial.printf("Attempt %d of %d to initialize modem...\n", attempt, MAX_RETRIES);
-    indicateStatus(0); // Indicate trying to connect
-    if (modemTest())
-    {
-      Serial.println("Modem initialized successfully.");
-      indicateStatus(2); // Indicate successfully connected
-      return true;
-    }
-    else
+    while (!modemTest())
     {
       Serial.println("Failed to communicate with the modem. Re-Trying...!");
+      indicateStatus(LED_MODEM, 0); // Indicate trying to connect
       for (int i = 0; i < 10; i++)
       {
         Serial.print(".......");
         delay(500);
       }
       Serial.println("");
+    }
+
+    if (modemTest())
+    {
+      Serial.println("Modem initialized successfully.");
+      indicateStatus(LED_MODEM, 2); // Indicate successfully connected
+      return true;
     }
   }
 
@@ -143,9 +161,11 @@ bool establishGPRS()
   for (int attempt = 1; attempt <= MAX_RETRIES; attempt++)
   {
     Serial.printf("Attempt %d of %d to configure GPRS...\n", attempt, MAX_RETRIES);
+    indicateStatus(LED_GPRS, 0); // Indicate trying to configure GPRS
     if (configureGPRS())
     {
       Serial.println("GPRS configured successfully.");
+      indicateStatus(LED_GPRS, 2); // Indicate successfully connected
       return true;
     }
     else
@@ -161,6 +181,7 @@ bool establishGPRS()
   }
 
   Serial.println("GPRS failed to configure after maximum retries.");
+  indicateStatus(LED_GPRS, 1); // Indicate unable to connect
   return false;
 }
 
@@ -170,9 +191,13 @@ void setup()
   Serial.begin(SERIAL_BAUD);
   delay(10);
 
-  // Initialize LED pin
-  pinMode(LED_PIN, OUTPUT);
-  digitalWrite(LED_PIN, LOW);
+  // Initialize LED pins
+  pinMode(LED_MODEM, OUTPUT);
+  digitalWrite(LED_MODEM, LOW);
+  pinMode(LED_GPS, OUTPUT);
+  digitalWrite(LED_GPS, LOW);
+  pinMode(LED_GPRS, OUTPUT);
+  digitalWrite(LED_GPRS, LOW);
 
   // Initialize modem
   if (!initializeModem())
@@ -180,7 +205,7 @@ void setup()
     Serial.println("Modem initialization failed. Halting execution.");
     while (true)
     {
-      indicateStatus(1); // Indicate unable to connect
+      indicateStatus(LED_MODEM, 1); // Indicate unable to connect
     }
   }
 
@@ -190,15 +215,19 @@ void setup()
     Serial.println("GPRS configuration failed. Halting execution.");
     while (true)
     {
-      indicateStatus(1); // Indicate unable to connect
+      indicateStatus(LED_GPRS, 1); // Indicate unable to connect
     }
   }
 
   Serial.println("Modem initialized and GPRS configured successfully.");
-  indicateStatus(2); // Indicate successfully connected
+  indicateStatus(LED_MODEM, 2); // Indicate successfully connected
 }
 
 void loop()
 {
   // Main loop can be used for other tasks
+  // Call the indicateStatus function periodically to update LED status
+  indicateStatus(LED_MODEM, 0); // For demonstration, replace with appropriate status
+  indicateStatus(LED_GPS, 0);   // For demonstration, replace with appropriate status
+  indicateStatus(LED_GPRS, 0);  // For demonstration, replace with appropriate status
 }
