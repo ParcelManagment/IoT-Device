@@ -45,8 +45,6 @@ bool modemTest()
   }
 }
 
-
-
 // Function to indicate status with LEDs using millis for non-blocking delays
 void indicateStatus(int ledPin, int status)
 {
