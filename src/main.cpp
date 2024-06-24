@@ -205,18 +205,115 @@ bool configureGPS()
   return true;
 }
 
-// Function to read GPS data
-void readGPS()
+// Function to fetch GPS data
+void fetchGPSData()
 {
+  Serial.println("Fetching GPS data...");
+
+  // Send command to get GPS info
   modemSerial.println("AT+CGNSINF");
-  if (modemSerial.available())
+
+  // Read the response
+  String response = modemSerial.readString();
+  Serial.println(response);
+
+  // Parse the response to extract GPS info
+  if (response.indexOf("+CGNSINF:") != -1)
   {
-    String gpsData = modemSerial.readString();
-    Serial.println(gpsData);
+    // Split the response based on commas
+    int start = response.indexOf(":") + 2; // Skip the "+CGNSINF: " part
+    String gpsInfo = response.substring(start);
+    char gpsData[gpsInfo.length() + 1];
+    gpsInfo.toCharArray(gpsData, gpsInfo.length() + 1);
+
+    // Use strtok to parse the gpsData
+    char *token = strtok(gpsData, ",");
+    int gpsFix = 0;
+    float latitude = 0.0, longitude = 0.0, altitude = 0.0, speed = 0.0, course = 0.0;
+    float hdop = 0.0, pdop = 0.0, vdop = 0.0;
+    int satellitesInView = 0, satellitesUsed = 0;
+
+    // Iterate through tokens to find the GPS fix status, latitude, longitude, altitude, etc.
+    for (int i = 0; token != NULL; i++)
+    {
+      switch (i)
+      {
+      case 1: // GPS fix status
+        gpsFix = atoi(token);
+        break;
+      case 3: // Latitude
+        latitude = atof(token);
+        break;
+      case 4: // Longitude
+        longitude = atof(token);
+        break;
+      case 5: // Altitude
+        altitude = atof(token);
+        break;
+      case 6: // Speed over ground
+        speed = atof(token);
+        break;
+      case 7: // Course over ground
+        course = atof(token);
+        break;
+      case 9: // HDOP
+        hdop = atof(token);
+        break;
+      case 10: // PDOP
+        pdop = atof(token);
+        break;
+      case 11: // VDOP
+        vdop = atof(token);
+        break;
+      case 14: // Satellites in view
+        satellitesInView = atoi(token);
+        break;
+      case 15: // Satellites used
+        satellitesUsed = atoi(token);
+        break;
+      }
+      token = strtok(NULL, ",");
+    }
+
+    if (gpsFix == 1)
+    {
+      Serial.println("GPS fix acquired.");
+      Serial.print("Latitude: ");
+      Serial.println(latitude, 6);
+      Serial.print("Longitude: ");
+      Serial.println(longitude, 6);
+      Serial.print("Altitude: ");
+      Serial.println(altitude, 2);
+      Serial.print("Speed: ");
+      Serial.println(speed, 2);
+      Serial.print("Course over ground (degrees): ");
+      Serial.println(course, 2);
+      Serial.print("Horizontal Dilution of Precision (HDOP): ");
+      Serial.println(hdop, 2);
+      Serial.print("Position Dilution of Precision (PDOP): ");
+      Serial.println(pdop, 2);
+      Serial.print("Vertical Dilution of Precision (VDOP): ");
+      Serial.println(vdop, 2);
+      Serial.print("Satellites in view: ");
+      Serial.println(satellitesInView);
+      Serial.print("Satellites used: ");
+      Serial.println(satellitesUsed);
+
+      // Indicate GPS fix acquired (solid on)
+      indicateStatus(LED_GPS, 2);
+    }
+    else
+    {
+      Serial.println("No valid GPS fix.");
+      // Indicate no valid GPS fix (slow blink)
+      indicateStatus(LED_GPS, 1);
+    }
   }
   else
   {
     Serial.println("No GPS data available.");
+    // Indicate no GPS data available (slow blink)
+    indicateStatus(LED_GPS, 1);
   }
 }
 
@@ -272,7 +369,7 @@ void setup()
 
 void loop()
 {
-  // Read GPS data
-  readGPS();
-  delay(5000); // Read GPS data every 5 seconds
+  // Fetch GPS data
+  fetchGPSData();
+  delay(5000); // Fetch GPS data every 5 seconds
 }
