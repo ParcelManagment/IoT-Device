@@ -18,7 +18,7 @@ unsigned long previousMillis = 0;
 int ledState = LOW;
 
 // APN details for GPRS connection
-const char apn[] = "your_apn";
+const char apn[] = "dialogbb";
 const char user[] = "";
 const char password[] = "";
 
@@ -85,6 +85,52 @@ bool configureGPRS()
   // Indicate trying to connect (fast blink)
   indicateStatus(LED_GPRS, 0);
 
+  // Enable modem echo
+  modemSerial.println("ATE1");
+  delay(100);
+  if (!modemSerial.find("OK"))
+  {
+    Serial.println("Failed to enable echo.");
+    return false;
+  }
+
+  // Enable verbose error reporting
+  modemSerial.println("AT+CMEE=2");
+  delay(100);
+  if (!modemSerial.find("OK"))
+  {
+    Serial.println("Failed to enable verbose error reporting.");
+    return false;
+  }
+
+  // Check network registration
+  modemSerial.println("AT+CREG?");
+  delay(100);
+  String response = modemSerial.readString();
+  Serial.println("Network registration status: " + response);
+  if (response.indexOf("+CREG: 0,1") == -1 && response.indexOf("+CREG: 0,5") == -1)
+  {
+    Serial.println("Modem not registered on network. Check SIM card and network.");
+    return false;
+  }
+
+  // Check GPRS attachment
+  modemSerial.println("AT+CGATT?");
+  delay(100);
+  response = modemSerial.readString();
+  Serial.println("GPRS attachment status: " + response);
+  if (response.indexOf("+CGATT: 1") == -1)
+  {
+    Serial.println("Modem not attached to GPRS. Check network and SIM card.");
+    return false;
+  }
+
+  // Reset PDP contexts
+  modemSerial.println("AT+CIPSHUT");
+  delay(100);
+  response = modemSerial.readString();
+  Serial.println("Reset PDP contexts: " + response);
+
   // Set the APN
   modemSerial.print("AT+CSTT=\"");
   modemSerial.print(apn);
@@ -93,31 +139,42 @@ bool configureGPRS()
   modemSerial.print("\",\"");
   modemSerial.print(password);
   modemSerial.println("\"");
-  if (!modemSerial.find("OK"))
+  delay(100); // Add a small delay
+  response = modemSerial.readString();
+  if (response.indexOf("OK") == -1)
   {
-    Serial.println("Failed to set APN.");
+    Serial.println("Failed to set APN. Response: " + response);
     return false;
   }
 
   // Bring up the wireless connection
   modemSerial.println("AT+CIICR");
-  if (!modemSerial.find("OK"))
+  delay(100); // Add a small delay
+  response = modemSerial.readString();
+  if (response.indexOf("OK") == -1)
   {
-    Serial.println("Failed to bring up wireless connection.");
+    Serial.println("Failed to bring up wireless connection. Response: " + response);
     return false;
   }
 
   // Get the local IP address
   modemSerial.println("AT+CIFSR");
-  if (modemSerial.find("ERROR"))
+  delay(100); // Add a small delay
+  response = modemSerial.readString();
+  if (response.indexOf("ERROR") != -1)
   {
-    Serial.println("Failed to get IP address.");
+    Serial.println("Failed to get IP address. Response: " + response);
     return false;
   }
 
   Serial.println("GPRS connected.");
   return true;
 }
+
+
+
+
+
 
 // Function to check signal strength
 void checkSignalStrength()
