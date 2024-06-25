@@ -119,6 +119,15 @@ bool configureGPRS()
   return true;
 }
 
+// Function to check signal strength
+void checkSignalStrength()
+{
+  modemSerial.println("AT+CSQ");
+  String response = modemSerial.readString();
+  Serial.print("Signal strength: ");
+  Serial.println(response);
+}
+
 // Function to initialize the modem
 bool initializeModem()
 {
@@ -159,6 +168,10 @@ bool establishGPRS()
   {
     Serial.printf("Attempt %d of %d to configure GPRS...\n", attempt, MAX_RETRIES);
     indicateStatus(LED_GPRS, 0); // Indicate trying to connect
+
+    // Check signal strength before attempting GPRS configuration
+    checkSignalStrength();
+
     if (configureGPRS())
     {
       Serial.println("GPRS configured successfully.");
