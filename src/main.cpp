@@ -122,15 +122,25 @@ void drawBatteryStatus()
   String status = String(level) + "%";
 
   display.clearDisplay();
-  display.setTextSize(2);
-  display.setTextColor(SSD1306_WHITE);
-  display.setCursor(0, 0);
-  display.println("Battery:");
-  display.setCursor(0, 24);
-  display.println(status);
-  display.setCursor(0, 48);
+
+  // Draw the battery icon outline
+  display.drawRect(SCREEN_WIDTH - 26, 0, 24, 12, SSD1306_WHITE); // Battery rectangle
+  display.fillRect(SCREEN_WIDTH - 4, 2, 2, 8, SSD1306_WHITE);    // Battery tip
+
+  // Fill the battery level
+  int batteryLevelWidth = map(level, 0, 100, 0, 20); // Map the battery level to a width
+  display.fillRect(SCREEN_WIDTH - 24, 2, batteryLevelWidth, 8, SSD1306_WHITE);
+
+  // Draw the battery percentage
+  display.setTextSize(1);
+  display.setCursor(SCREEN_WIDTH - 60, 2);
+  display.print(status);
+
+  display.setTextSize(1);
+  display.setCursor(0, 54);
   display.print("Volts: ");
   display.print(volts, 2);
+
   display.display();
 }
 
