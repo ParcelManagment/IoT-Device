@@ -1,4 +1,3 @@
-#include <Arduino.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
@@ -12,6 +11,7 @@
 
 // LED Indicators
 #define DisplayErrorLED 12 // Indicate the errors occurred on the display
+#define CHARGING_PIN 13    // GPIO pin connected to CHRG pin of the charging module
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET); // Object in Adafruit_SSD1306 class
 
@@ -20,6 +20,10 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET); // Obj
 #define CONV_FACTOR 1.8
 #define READS 20
 Pangodream_18650_CL BL(ADC_PIN, CONV_FACTOR, READS);
+
+// Global variables for signal strength and network type
+int signalStrength = 70;   // Example value
+String networkType = "3G"; // Example value
 
 // I2C Scanner Function
 int scanI2C()
@@ -121,8 +125,6 @@ void drawBatteryStatus()
   int level = BL.getBatteryChargeLevel();
   String status = String(level) + "%";
 
-  display.clearDisplay();
-
   // Draw the battery icon outline
   display.drawRect(SCREEN_WIDTH - 26, 0, 24, 12, SSD1306_WHITE); // Battery rectangle
   display.fillRect(SCREEN_WIDTH - 4, 2, 2, 8, SSD1306_WHITE);    // Battery tip
@@ -135,13 +137,24 @@ void drawBatteryStatus()
   display.setTextSize(1);
   display.setCursor(SCREEN_WIDTH - 60, 2);
   display.print(status);
+}
 
+// Updated function to draw the GPRS signal strength and network type on the display
+void drawSignalStatus()
+{
+  // Calculate the number of bars to display based on signal strength
+  int numBars = (signalStrength + 19) / 20; // Divide signal strength by 20 to get bars
+
+  // Draw the signal strength bars
+  for (int i = 0; i < numBars; i++)
+  {
+    display.fillRect(2 + (i * 6), 8 - (i * 2), 4, i * 2, SSD1306_WHITE);
+  }
+
+  // Draw the network type
   display.setTextSize(1);
-  display.setCursor(0, 54);
-  display.print("Volts: ");
-  display.print(volts, 2);
-
-  display.display();
+  display.setCursor(40, 2);
+  display.print(networkType);
 }
 
 void setup()
@@ -180,7 +193,10 @@ void setup()
       {
         for (;;)
         {
+          display.clearDisplay();
           drawBatteryStatus();
+          drawSignalStatus();
+          display.display();
           vTaskDelay(pdMS_TO_TICKS(1000));
         }
       },
