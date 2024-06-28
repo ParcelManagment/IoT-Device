@@ -110,16 +110,47 @@ void testDisplay()
 void showBootScreen()
 {
   display.clearDisplay();
+  
+  // Calculate the cursor position for center alignment
+  const char* line1 = "Track-ME";
+  const char* line2 = "Powered by EIT @ UOC";
+  const char* line3 = "(20/21 Batch)";
+
+  int16_t x1, y1;
+  uint16_t w, h;
+
   display.setTextSize(2);
-  display.setTextColor(SSD1306_WHITE);
-  display.setCursor(0, 16);
-  display.println("Your Logo");
+  display.getTextBounds(line1, 0, 0, &x1, &y1, &w, &h);
+  int16_t cursorX1 = (SCREEN_WIDTH - w) / 2;
+  int16_t cursorY1 = (SCREEN_HEIGHT / 2) - h - 5; // adjust as needed for vertical position
+
   display.setTextSize(1);
-  display.setCursor(0, 48);
-  display.println("Powered by Your Company");
+  display.getTextBounds(line2, 0, 0, &x1, &y1, &w, &h);
+  int16_t cursorX2 = (SCREEN_WIDTH - w) / 2;
+  int16_t cursorY2 = (SCREEN_HEIGHT / 2) + 5; // adjust as needed for vertical position
+
+  display.setTextSize(1);
+  display.getTextBounds(line3, 0, 0, &x1, &y1, &w, &h);
+  int16_t cursorX3 = (SCREEN_WIDTH - w) / 2;
+  int16_t cursorY3 = (SCREEN_HEIGHT / 2) + 15; // adjust as needed for vertical position
+
+  // Set the cursor position and print the text
+  display.setTextSize(2);
+  display.setCursor(cursorX1, cursorY1);
+  display.println(line1);
+  
+  display.setTextSize(1);
+  display.setCursor(cursorX2, cursorY2);
+  display.println(line2);
+  
+  display.setTextSize(1);
+  display.setCursor(cursorX3, cursorY3);
+  display.println(line3);
+  
   display.display();
   delay(3000);
 }
+
 
 void showWelcomeScreen()
 {
@@ -128,13 +159,15 @@ void showWelcomeScreen()
   display.setTextColor(SSD1306_WHITE);
   display.setCursor(0, 16);
   display.println("Welcome to");
-  display.setTextSize(2);
+  display.setTextSize(1);
   display.setCursor(0, 32);
-  display.println("Parcel Tracker");
+  display.println("Our Track-ME System !");
   display.setTextSize(1);
   display.setCursor(0, 56);
-  display.println("Press any button to continue");
+  display.println("Press any button to continue..");
   display.display();
+  delay(3000);
+
 }
 
 void showModeSelectionScreen()
@@ -151,6 +184,8 @@ void showModeSelectionScreen()
   display.setCursor(0, 56);
   display.println("Use buttons to select");
   display.display();
+  delay(3000);
+ 
 }
 
 void showRegisterParcelsScreen()
@@ -209,4 +244,8 @@ void loop()
 {
   esp_task_wdt_reset(); // Reset the watchdog timer periodically
   testDisplay();        // Run the display function to test
+  showBootScreen();
+  //showWelcomeScreen();
+  //showModeSelectionScreen();
+
 }
