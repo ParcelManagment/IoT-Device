@@ -8,6 +8,7 @@
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64 // or 32 for smaller display
 #define OLED_RESET -1    // Reset pin # (or -1 if sharing Arduino reset pin)
+#define START_BUTTON 5 //progess start button - should be change
 
 // LED Indicators
 #define DisplayErrorLED 12 // Indicate the errors occurred on the display
@@ -152,23 +153,97 @@ void showBootScreen()
 }
 
 
-void showWelcomeScreen()
-{
+void showWelcomeScreen() {
+  display.clearDisplay();
+  
+  const char* line1 = "Welcome to";
+  const char* line2 = "Track-ME";
+  const char* line3 = "   Press any key to        continue...";
+
+  int16_t x1, y1;
+  uint16_t w1, h1, w2, h2, w3, h3, w11, h11;
+
+  display.setTextSize(2);
+  display.getTextBounds(line1, 0, 0, &x1, &y1, &w1, &h1);
+  display.setTextSize(2);
+  display.getTextBounds(line2, 0, 0, &x1, &y1, &w2, &h2);
+  display.setTextSize(1);
+  display.getTextBounds(line3, 0, 0, &x1, &y1, &w3, &h3);
+  display.getTextBounds(line1, 0, 0, &x1, &y1, &w11, &h11);
+
+  // Animate "Welcome to" letter by letter
+  int len1 = strlen(line1);
+  for (int i = 0; i <= len1; i++) {
+    display.clearDisplay();
+    display.setTextSize(2);
+    String part1 = String(line1).substring(0, i);
+    display.setCursor((SCREEN_WIDTH - w1) / 2, 16); // Upper center horizontal alignment
+    display.println(part1);
+    display.display();
+    delay(50);
+  }
+  delay(400);
+
+  // Move "Welcome to" to the upper center
   display.clearDisplay();
   display.setTextSize(1);
-  display.setTextColor(SSD1306_WHITE);
-  display.setCursor(0, 16);
-  display.println("Welcome to");
-  display.setTextSize(1);
-  display.setCursor(0, 32);
-  display.println("Our Track-ME System !");
-  display.setTextSize(1);
-  display.setCursor(0, 56);
-  display.println("Press any button to continue..");
+  display.setCursor((SCREEN_WIDTH - w11) / 2, 0); // Upper center horizontal alignment
+  display.println(line1);
   display.display();
-  delay(3000);
+  delay(5);
 
+  // Animate "Track-ME" letter by letter
+  int len2 = strlen(line2);
+  for (int i = 0; i <= len2; i++) {
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setCursor((SCREEN_WIDTH - w11) / 2, 0); // Upper center horizontal alignment
+    display.println(line1);
+    display.setTextSize(2);
+    String part2 = String(line2).substring(0, i);
+    display.setCursor((SCREEN_WIDTH - w2) / 2, (SCREEN_HEIGHT / 2) - h2 / 2); // Center vertical position
+    display.println(part2);
+    display.display();
+    delay(50);
+  }
+
+  // Keep "Track-ME" on the screen
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setCursor((SCREEN_WIDTH - w11) / 2, 0); // Upper center horizontal alignment
+  display.println(line1);
+  display.setTextSize(2);
+  display.setCursor((SCREEN_WIDTH - w2) / 2, (SCREEN_HEIGHT / 2) - h2 / 2); // Center vertical position
+  display.println(line2);
+  display.display();
+  delay(100);
+
+  // Animate "Press any key to continue.." from left to right
+  int len3 = strlen(line3);
+  for (int i = 0; i <= len3; i++) {
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setCursor((SCREEN_WIDTH - w11) / 2, 0); // Upper center horizontal alignment
+    display.println(line1);
+    display.setTextSize(2);
+    display.setCursor((SCREEN_WIDTH - w2) / 2, (SCREEN_HEIGHT / 2) - h2 / 2); // Center vertical position
+    display.println(line2);
+    display.setTextSize(1);
+    String part3 = String(line3).substring(0, i);
+    display.setCursor((SCREEN_WIDTH - w3) / 2, (SCREEN_HEIGHT / 2) + 16); // Lower center horizontal alignment
+    display.println(part3);
+    display.display();
+    delay(20);
+  }
+
+  // Wait for button press (Simulation for demo purposes)
+  while (digitalRead(START_BUTTON) != LOW) {
+    delay(10); // Debounce delay
+  }
+  display.clearDisplay();
 }
+
+
 
 void showModeSelectionScreen()
 {
@@ -212,6 +287,8 @@ void setup()
 {
   // Initialize the serial communication at 115200 baud rate
   Serial.begin(115200);
+  // Initialized the start button.
+  pinMode(START_BUTTON, INPUT_PULLUP);
   // Wait for the serial port to connect (useful for some boards)
   while (!Serial) //*************Remove this while loop from final deployment. */
   {
@@ -220,7 +297,7 @@ void setup()
   Serial.println("Serial Monitor Test: Hello, World!");
 
   Wire.begin();
-  esp_task_wdt_init(10, true); // 10 seconds timeout
+  esp_task_wdt_init(60, true); // 10 seconds timeout
   esp_task_wdt_add(NULL);      // Add current thread to WDT
 
   int screenAddress = scanI2C();
@@ -245,7 +322,7 @@ void loop()
   esp_task_wdt_reset(); // Reset the watchdog timer periodically
   testDisplay();        // Run the display function to test
   showBootScreen();
-  //showWelcomeScreen();
+  showWelcomeScreen();
   //showModeSelectionScreen();
 
 }
