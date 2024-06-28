@@ -104,7 +104,73 @@ void testDisplay()
   display.println(data);
   display.display();
 
-  delay(2000); // Wait before updating again
+  delay(200); // Wait before updating again
+}
+
+void showBootScreen()
+{
+  display.clearDisplay();
+  display.setTextSize(2);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 16);
+  display.println("Your Logo");
+  display.setTextSize(1);
+  display.setCursor(0, 48);
+  display.println("Powered by Your Company");
+  display.display();
+  delay(3000);
+}
+
+void showWelcomeScreen()
+{
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 16);
+  display.println("Welcome to");
+  display.setTextSize(2);
+  display.setCursor(0, 32);
+  display.println("Parcel Tracker");
+  display.setTextSize(1);
+  display.setCursor(0, 56);
+  display.println("Press any button to continue");
+  display.display();
+}
+
+void showModeSelectionScreen()
+{
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 0);
+  display.println("Select Mode");
+  display.setCursor(0, 16);
+  display.println("1. Register Parcels");
+  display.setCursor(0, 32);
+  display.println("2. Track Parcels");
+  display.setCursor(0, 56);
+  display.println("Use buttons to select");
+  display.display();
+}
+
+void showRegisterParcelsScreen()
+{
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 16);
+  display.println("Scan RFID to Register");
+  display.display();
+}
+
+void showTrackParcelsScreen()
+{
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 0);
+  display.println("Tracking Mode");
+  display.display();
 }
 
 void setup()
