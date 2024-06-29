@@ -8,12 +8,21 @@
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64 // or 32 for smaller display
 #define OLED_RESET -1    // Reset pin # (or -1 if sharing Arduino reset pin)
-#define START_BUTTON 5 //progess start button - should be change
+#define START_BUTTON 32  // progess start button - should be change
+#define MODE_SELECT_BUTTON 33
 
 // LED Indicators
 #define DisplayErrorLED 12 // Indicate the errors occurred on the display
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET); // Object in Adafruit_SSD1306 class
+
+volatile bool continueWelcomeScreen = true; // Flag to control showing welcome screen
+
+void startButtonInterrupt()
+{
+  // Toggle the flag to stop showing welcome screen
+  continueWelcomeScreen = false;
+}
 
 // I2C Scanner Function
 int scanI2C()
@@ -93,7 +102,7 @@ bool initDisplay(int screenAddress)
   return false; // Initialization failed after 3 attempts
 }
 
-// Function for testing OLED display
+// Function for testing OLED display - success
 void testDisplay()
 {
   String data = "RFID: 12345678\nLocation: XYZ";
@@ -108,14 +117,15 @@ void testDisplay()
   delay(200); // Wait before updating again
 }
 
+// success
 void showBootScreen()
 {
   display.clearDisplay();
-  
+
   // Calculate the cursor position for center alignment
-  const char* line1 = "Track-ME";
-  const char* line2 = "Powered by EIT @ UOC";
-  const char* line3 = "(20/21 Batch)";
+  const char *line1 = "Track-ME";
+  const char *line2 = "Powered by EIT @ UOC";
+  const char *line3 = "(20/21 Batch)";
 
   int16_t x1, y1;
   uint16_t w, h;
@@ -139,26 +149,24 @@ void showBootScreen()
   display.setTextSize(2);
   display.setCursor(cursorX1, cursorY1);
   display.println(line1);
-  
+
   display.setTextSize(1);
   display.setCursor(cursorX2, cursorY2);
   display.println(line2);
-  
+
   display.setTextSize(1);
   display.setCursor(cursorX3, cursorY3);
   display.println(line3);
-  
+
   display.display();
-  delay(3000);
+  delay(2000);
 }
 
-
-void showWelcomeScreen() {
-  display.clearDisplay();
-  
-  const char* line1 = "Welcome to";
-  const char* line2 = "Track-ME";
-  const char* line3 = "   Press any key to        continue...";
+void showWelcomeScreen()
+{
+  const char *line1 = "Welcome to";
+  const char *line2 = "Track-ME";
+  const char *line3 = " Press START Button      to continue...";
 
   int16_t x1, y1;
   uint16_t w1, h1, w2, h2, w3, h3, w11, h11;
@@ -171,62 +179,15 @@ void showWelcomeScreen() {
   display.getTextBounds(line3, 0, 0, &x1, &y1, &w3, &h3);
   display.getTextBounds(line1, 0, 0, &x1, &y1, &w11, &h11);
 
-  // Animate "Welcome to" letter by letter
-  int len1 = strlen(line1);
-  for (int i = 0; i <= len1; i++) {
-    display.clearDisplay();
-    display.setTextSize(2);
-    String part1 = String(line1).substring(0, i);
-    display.setCursor((SCREEN_WIDTH - w1) / 2, 16); // Upper center horizontal alignment
-    display.println(part1);
-    display.display();
-    delay(50);
-  }
-  delay(400);
-
-  // Move "Welcome to" to the upper center
-  display.clearDisplay();
-  display.setTextSize(1);
-  display.setCursor((SCREEN_WIDTH - w11) / 2, 0); // Upper center horizontal alignment
-  display.println(line1);
-  display.display();
-  delay(5);
-
-  // Animate "Track-ME" letter by letter
-  int len2 = strlen(line2);
-  for (int i = 0; i <= len2; i++) {
-    display.clearDisplay();
-    display.setTextSize(1);
-    display.setCursor((SCREEN_WIDTH - w11) / 2, 0); // Upper center horizontal alignment
-    display.println(line1);
-    display.setTextSize(2);
-    String part2 = String(line2).substring(0, i);
-    display.setCursor((SCREEN_WIDTH - w2) / 2, (SCREEN_HEIGHT / 2) - h2 / 2); // Center vertical position
-    display.println(part2);
-    display.display();
-    delay(50);
-  }
-
-  // Keep "Track-ME" on the screen
-  display.clearDisplay();
-  display.setTextSize(1);
-  display.setCursor((SCREEN_WIDTH - w11) / 2, 0); // Upper center horizontal alignment
-  display.println(line1);
-  display.setTextSize(2);
-  display.setCursor((SCREEN_WIDTH - w2) / 2, (SCREEN_HEIGHT / 2) - h2 / 2); // Center vertical position
-  display.println(line2);
-  display.display();
-  delay(100);
-
-  // Animate "Press any key to continue.." from left to right
   int len3 = strlen(line3);
-  for (int i = 0; i <= len3; i++) {
+  for (int i = 0; i <= len3; i++)
+  {
     display.clearDisplay();
     display.setTextSize(1);
     display.setCursor((SCREEN_WIDTH - w11) / 2, 0); // Upper center horizontal alignment
     display.println(line1);
     display.setTextSize(2);
-    display.setCursor((SCREEN_WIDTH - w2) / 2, (SCREEN_HEIGHT / 2) - h2 / 2); // Center vertical position
+    display.setCursor((SCREEN_WIDTH - w2) / 2, (SCREEN_HEIGHT / 2) - h2 / 2 - 2); // Center vertical position
     display.println(line2);
     display.setTextSize(1);
     String part3 = String(line3).substring(0, i);
@@ -235,32 +196,6 @@ void showWelcomeScreen() {
     display.display();
     delay(20);
   }
-
-  // Wait for button press (Simulation for demo purposes)
-  while (digitalRead(START_BUTTON) != LOW) {
-    delay(10); // Debounce delay
-  }
-  display.clearDisplay();
-}
-
-
-
-void showModeSelectionScreen()
-{
-  display.clearDisplay();
-  display.setTextSize(1);
-  display.setTextColor(SSD1306_WHITE);
-  display.setCursor(0, 0);
-  display.println("Select Mode");
-  display.setCursor(0, 16);
-  display.println("1. Register Parcels");
-  display.setCursor(0, 32);
-  display.println("2. Track Parcels");
-  display.setCursor(0, 56);
-  display.println("Use buttons to select");
-  display.display();
-  delay(3000);
- 
 }
 
 void showRegisterParcelsScreen()
@@ -283,12 +218,86 @@ void showTrackParcelsScreen()
   display.display();
 }
 
+void showModeSelectionScreen()
+{
+  display.clearDisplay();
+
+  const char *line1 = "Please select mode";
+  const char *mode1 = "1. Register Parcels";
+  const char *mode2 = "2. Track Parcels";
+  const char *confirmMessage = "Press START to confirm";
+
+  int selectedMode = 0; // 0 for Register, 1 for Track
+
+  while (true)
+  {
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor((SCREEN_WIDTH - display.width()) / 2, 0);
+    display.println(line1);
+
+    // Display modes with indication of selection
+    if (selectedMode == 0)
+    {
+      display.setCursor((SCREEN_WIDTH - display.width()) / 2, 20);
+      display.println("> " + String(mode1)); // Indicate selection
+      display.setCursor((SCREEN_WIDTH - display.width()) / 2, 36);
+      display.println("  " + String(mode2));
+    }
+    else
+    {
+      display.setCursor((SCREEN_WIDTH - display.width()) / 2, 20);
+      display.println("  " + String(mode1));
+      display.setCursor((SCREEN_WIDTH - display.width()) / 2, 36);
+      display.println("> " + String(mode2)); // Indicate selection
+    }
+
+    // Display confirmation message
+    display.setCursor((SCREEN_WIDTH - display.width()) / 2, 56);
+    display.println(confirmMessage);
+
+    display.display();
+
+    // Wait for button press
+    if (digitalRead(MODE_SELECT_BUTTON) == LOW)
+    {
+      selectedMode = !selectedMode; // Toggle selection
+      delay(300);                   // Debounce delay
+    }
+
+    if (digitalRead(START_BUTTON) == LOW)
+    {
+      delay(300); // Debounce delay
+      break;      // Exit loop on confirmation
+    }
+
+    delay(100);
+  }
+
+  // Proceed based on selected mode
+  if (selectedMode == 0)
+  {
+    showRegisterParcelsScreen();
+  }
+  else
+  {
+    showTrackParcelsScreen();
+  }
+}
+
 void setup()
 {
   // Initialize the serial communication at 115200 baud rate
   Serial.begin(115200);
+
   // Initialized the start button.
-  pinMode(START_BUTTON, INPUT_PULLUP);
+  pinMode(START_BUTTON, INPUT_PULLDOWN);
+  pinMode(MODE_SELECT_BUTTON, INPUT_PULLDOWN);
+
+  // Attach interrupt to START_BUTTON pin
+  attachInterrupt(digitalPinToInterrupt(START_BUTTON), startButtonInterrupt, FALLING);
+
   // Wait for the serial port to connect (useful for some boards)
   while (!Serial) //*************Remove this while loop from final deployment. */
   {
@@ -315,14 +324,20 @@ void setup()
   display.display();
   delay(2000); // Pause for 2 seconds
   display.clearDisplay();
+
+  testDisplay(); // Run the display function to test
+  showBootScreen();
+  display.clearDisplay();
+  while (continueWelcomeScreen)
+  {
+    showWelcomeScreen();
+  }
+  display.clearDisplay();
 }
 
 void loop()
 {
   esp_task_wdt_reset(); // Reset the watchdog timer periodically
-  testDisplay();        // Run the display function to test
-  showBootScreen();
-  showWelcomeScreen();
-  //showModeSelectionScreen();
 
+  showModeSelectionScreen();
 }
