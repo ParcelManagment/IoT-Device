@@ -16,12 +16,22 @@
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET); // Object in Adafruit_SSD1306 class
 
+volatile bool START = false ; // prevent from unexpected button inputs.
 volatile bool continueWelcomeScreen = true; // Flag to control showing welcome screen
+volatile bool selectModeOption = true;      // Flag to select the operating mode.
 
 void startButtonInterrupt()
 {
   // Toggle the flag to stop showing welcome screen
-  continueWelcomeScreen = false;
+  if(START){
+    continueWelcomeScreen = false;
+  }
+}
+
+void modeSelectButtonInterrupt()
+{
+  // toggle the flag to select the mode of the system
+  selectModeOption = false;
 }
 
 // I2C Scanner Function
@@ -159,7 +169,7 @@ void showBootScreen()
   display.println(line3);
 
   display.display();
-  delay(2000);
+  delay(3000);
 }
 
 void showWelcomeScreen()
@@ -291,19 +301,27 @@ void setup()
   // Initialize the serial communication at 115200 baud rate
   Serial.begin(115200);
 
-  // Initialized the start button.
-  pinMode(START_BUTTON, INPUT_PULLDOWN);
-  pinMode(MODE_SELECT_BUTTON, INPUT_PULLDOWN);
-
-  // Attach interrupt to START_BUTTON pin
-  attachInterrupt(digitalPinToInterrupt(START_BUTTON), startButtonInterrupt, FALLING);
-
   // Wait for the serial port to connect (useful for some boards)
   while (!Serial) //*************Remove this while loop from final deployment. */
   {
     ; // wait for serial port to connect. Needed for native USB
   }
   Serial.println("Serial Monitor Test: Hello, World!");
+
+  //----------------------------------------------------------------------------------------------------
+
+  // Initialized the start button.
+  pinMode(START_BUTTON, INPUT_PULLDOWN);
+  pinMode(MODE_SELECT_BUTTON, INPUT_PULLDOWN);
+
+  //----------------------------------------------------------------------------------------------------
+
+  // Attach interrupt to START_BUTTON pin
+  attachInterrupt(digitalPinToInterrupt(START_BUTTON), startButtonInterrupt, FALLING);
+  // Attach interrupt to MODE_SELECT_BUTTON pin
+  attachInterrupt(digitalPinToInterrupt(MODE_SELECT_BUTTON), modeSelectButtonInterrupt, FALLING);
+
+  //---------------------------------------------------------------------------------------------------
 
   Wire.begin();
   esp_task_wdt_init(60, true); // 10 seconds timeout
@@ -321,6 +339,8 @@ void setup()
     }
   }
 
+  //---------------------------------------------------------------------------------------------------
+
   display.display();
   delay(2000); // Pause for 2 seconds
   display.clearDisplay();
@@ -328,11 +348,14 @@ void setup()
   testDisplay(); // Run the display function to test
   showBootScreen();
   display.clearDisplay();
+  START = true ; // prevent from unexpected button inputs.
   while (continueWelcomeScreen)
   {
     showWelcomeScreen();
   }
   display.clearDisplay();
+
+  
 }
 
 void loop()
