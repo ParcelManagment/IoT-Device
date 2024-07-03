@@ -8,30 +8,60 @@
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64 // or 32 for smaller display
 #define OLED_RESET -1    // Reset pin # (or -1 if sharing Arduino reset pin)
-#define START_BUTTON 32  // progess start button - should be change
-#define MODE_SELECT_BUTTON 33
 
 // LED Indicators
 #define DisplayErrorLED 12 // Indicate the errors occurred on the display
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET); // Object in Adafruit_SSD1306 class
 
-volatile bool START = false ; // prevent from unexpected button inputs.
+volatile bool START = false;                // prevent from unexpected button inputs.
+volatile bool SELECTMODE = false;           // prevent from unexpected button inputs.
 volatile bool continueWelcomeScreen = true; // Flag to control showing welcome screen
 volatile bool selectModeOption = true;      // Flag to select the operating mode.
+volatile bool confirmMode = true;           // flag for the confirmatio of the selected mode by start button
+volatile bool displayTrackParcelsScreen = false;
+volatile bool displayRegisterParcelsScreen = false;
 
-void startButtonInterrupt()
+// variables to keep track of the timing of recent interrupts
+unsigned long button_time = 0;
+unsigned long last_button_time = 0;
+
+struct Button
 {
-  // Toggle the flag to stop showing welcome screen
-  if(START){
-    continueWelcomeScreen = false;
+  const uint8_t PIN;
+};
+
+Button START_BUTTON = {32};
+Button MODE_SELECT_BUTTON = {33};
+
+void IRAM_ATTR startButtonInterrupt()
+{
+  button_time = millis();
+  if (button_time - last_button_time > 250)
+  {
+    if (START && !SELECTMODE)
+    {
+      continueWelcomeScreen = false;
+    }
+    if (START && SELECTMODE)
+    {
+      confirmMode = false;
+    }
+    last_button_time = button_time;
   }
 }
 
-void modeSelectButtonInterrupt()
+void IRAM_ATTR modeSelectButtonInterrupt()
 {
-  // toggle the flag to select the mode of the system
-  selectModeOption = false;
+  button_time = millis();
+  if (button_time - last_button_time > 250)
+  {
+    if (START && SELECTMODE)
+    {
+      selectModeOption = !selectModeOption;
+    }
+    last_button_time = button_time;
+  }
 }
 
 // I2C Scanner Function
@@ -103,11 +133,9 @@ bool initDisplay(int screenAddress)
       Serial.println("Display initialization is successful");
       return true; // initialization is successful.
     }
-
     notifyUserAboutDisplayError("Warning: An error in display Initialization...Check the connections."); // notify about error
     delay(1000);
   }
-
   Serial.println("Display initialization has failed!");
   return false; // Initialization failed after 3 attempts
 }
@@ -123,7 +151,6 @@ void testDisplay()
   display.setCursor(0, 0);
   display.println(data);
   display.display();
-
   delay(200); // Wait before updating again
 }
 
@@ -131,43 +158,34 @@ void testDisplay()
 void showBootScreen()
 {
   display.clearDisplay();
-
   // Calculate the cursor position for center alignment
   const char *line1 = "Track-ME";
   const char *line2 = "Powered by EIT @ UOC";
   const char *line3 = "(20/21 Batch)";
-
   int16_t x1, y1;
   uint16_t w, h;
-
   display.setTextSize(2);
   display.getTextBounds(line1, 0, 0, &x1, &y1, &w, &h);
   int16_t cursorX1 = (SCREEN_WIDTH - w) / 2;
   int16_t cursorY1 = (SCREEN_HEIGHT / 2) - h - 5; // adjust as needed for vertical position
-
   display.setTextSize(1);
   display.getTextBounds(line2, 0, 0, &x1, &y1, &w, &h);
   int16_t cursorX2 = (SCREEN_WIDTH - w) / 2;
   int16_t cursorY2 = (SCREEN_HEIGHT / 2) + 5; // adjust as needed for vertical position
-
   display.setTextSize(1);
   display.getTextBounds(line3, 0, 0, &x1, &y1, &w, &h);
   int16_t cursorX3 = (SCREEN_WIDTH - w) / 2;
   int16_t cursorY3 = (SCREEN_HEIGHT / 2) + 15; // adjust as needed for vertical position
-
   // Set the cursor position and print the text
   display.setTextSize(2);
   display.setCursor(cursorX1, cursorY1);
   display.println(line1);
-
   display.setTextSize(1);
   display.setCursor(cursorX2, cursorY2);
   display.println(line2);
-
   display.setTextSize(1);
   display.setCursor(cursorX3, cursorY3);
   display.println(line3);
-
   display.display();
   delay(3000);
 }
@@ -177,10 +195,8 @@ void showWelcomeScreen()
   const char *line1 = "Welcome to";
   const char *line2 = "Track-ME";
   const char *line3 = " Press START Button      to continue...";
-
   int16_t x1, y1;
   uint16_t w1, h1, w2, h2, w3, h3, w11, h11;
-
   display.setTextSize(2);
   display.getTextBounds(line1, 0, 0, &x1, &y1, &w1, &h1);
   display.setTextSize(2);
@@ -188,7 +204,6 @@ void showWelcomeScreen()
   display.setTextSize(1);
   display.getTextBounds(line3, 0, 0, &x1, &y1, &w3, &h3);
   display.getTextBounds(line1, 0, 0, &x1, &y1, &w11, &h11);
-
   int len3 = strlen(line3);
   for (int i = 0; i <= len3; i++)
   {
@@ -231,24 +246,19 @@ void showTrackParcelsScreen()
 void showModeSelectionScreen()
 {
   display.clearDisplay();
-
   const char *line1 = "Please select mode";
   const char *mode1 = "1. Register Parcels";
   const char *mode2 = "2. Track Parcels";
   const char *confirmMessage = "Press START to confirm";
-
-  int selectedMode = 0; // 0 for Register, 1 for Track
-
-  while (true)
+  while (confirmMode)
   {
     display.clearDisplay();
     display.setTextSize(1);
     display.setTextColor(SSD1306_WHITE);
     display.setCursor((SCREEN_WIDTH - display.width()) / 2, 0);
     display.println(line1);
-
     // Display modes with indication of selection
-    if (selectedMode == 0)
+    if (selectModeOption)
     {
       display.setCursor((SCREEN_WIDTH - display.width()) / 2, 20);
       display.println("> " + String(mode1)); // Indicate selection
@@ -262,71 +272,46 @@ void showModeSelectionScreen()
       display.setCursor((SCREEN_WIDTH - display.width()) / 2, 36);
       display.println("> " + String(mode2)); // Indicate selection
     }
-
     // Display confirmation message
     display.setCursor((SCREEN_WIDTH - display.width()) / 2, 56);
     display.println(confirmMessage);
-
     display.display();
-
-    // Wait for button press
-    if (digitalRead(MODE_SELECT_BUTTON) == LOW)
-    {
-      selectedMode = !selectedMode; // Toggle selection
-      delay(300);                   // Debounce delay
-    }
-
-    if (digitalRead(START_BUTTON) == LOW)
-    {
-      delay(300); // Debounce delay
-      break;      // Exit loop on confirmation
-    }
-
-    delay(100);
+    delay(100); // Add a small delay for debouncing
   }
-
-  // Proceed based on selected mode
-  if (selectedMode == 0)
+  // Set the screen flag based on the selected mode
+  if (selectModeOption)
   {
-    showRegisterParcelsScreen();
+    displayRegisterParcelsScreen = true;
   }
   else
   {
-    showTrackParcelsScreen();
+    displayTrackParcelsScreen = true;
   }
+  // Reset flags for next operations
+  confirmMode = true;
+  selectModeOption = true;
 }
 
 void setup()
 {
   // Initialize the serial communication at 115200 baud rate
   Serial.begin(115200);
-
   // Wait for the serial port to connect (useful for some boards)
-  while (!Serial) //*************Remove this while loop from final deployment. */
+  while (!Serial)
   {
     ; // wait for serial port to connect. Needed for native USB
   }
   Serial.println("Serial Monitor Test: Hello, World!");
-
-  //----------------------------------------------------------------------------------------------------
-
-  // Initialized the start button.
-  pinMode(START_BUTTON, INPUT_PULLDOWN);
-  pinMode(MODE_SELECT_BUTTON, INPUT_PULLDOWN);
-
-  //----------------------------------------------------------------------------------------------------
-
+  // Initialize the start button and mode select button
+  pinMode(START_BUTTON.PIN, INPUT_PULLUP);
+  pinMode(MODE_SELECT_BUTTON.PIN, INPUT_PULLUP);
   // Attach interrupt to START_BUTTON pin
-  attachInterrupt(digitalPinToInterrupt(START_BUTTON), startButtonInterrupt, FALLING);
+  attachInterrupt(START_BUTTON.PIN, startButtonInterrupt, FALLING);
   // Attach interrupt to MODE_SELECT_BUTTON pin
-  attachInterrupt(digitalPinToInterrupt(MODE_SELECT_BUTTON), modeSelectButtonInterrupt, FALLING);
-
-  //---------------------------------------------------------------------------------------------------
-
+  attachInterrupt(MODE_SELECT_BUTTON.PIN, modeSelectButtonInterrupt, FALLING);
   Wire.begin();
-  esp_task_wdt_init(60, true); // 10 seconds timeout
+  esp_task_wdt_init(60, true); // 60 seconds timeout
   esp_task_wdt_add(NULL);      // Add current thread to WDT
-
   int screenAddress = scanI2C();
   if (screenAddress == -1 || !initDisplay(screenAddress))
   {
@@ -338,29 +323,32 @@ void setup()
       esp_task_wdt_reset();                                                                                // Reset watchdog to prevent system reset
     }
   }
-
-  //---------------------------------------------------------------------------------------------------
-
   display.display();
   delay(2000); // Pause for 2 seconds
   display.clearDisplay();
-
   testDisplay(); // Run the display function to test
   showBootScreen();
   display.clearDisplay();
-  START = true ; // prevent from unexpected button inputs.
+  START = true; // Allow button inputs
   while (continueWelcomeScreen)
   {
     showWelcomeScreen();
   }
-  display.clearDisplay();
+  SELECTMODE = true; // Allow mode selection
+  showModeSelectionScreen();
 
-  
+  display.clearDisplay();
 }
 
 void loop()
 {
   esp_task_wdt_reset(); // Reset the watchdog timer periodically
-
-  showModeSelectionScreen();
+  if (displayRegisterParcelsScreen)
+  {
+    showRegisterParcelsScreen();
+  }
+  if (displayTrackParcelsScreen)
+  {
+    showTrackParcelsScreen();
+  }
 }
