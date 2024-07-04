@@ -14,6 +14,14 @@
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET); // Object in Adafruit_SSD1306 class
 
+// Loading animation frames
+const char *loadingFrames[] = {
+    "|",
+    "/",
+    "-",
+    "\\"};
+const int numFrames = 4;
+
 volatile bool START = false;                // prevent from unexpected button inputs.
 volatile bool SELECTMODE = false;           // prevent from unexpected button inputs.
 volatile bool continueWelcomeScreen = true; // Flag to control showing welcome screen
@@ -21,8 +29,12 @@ volatile bool selectModeOption = true;      // Flag to select the operating mode
 volatile bool confirmMode = true;           // flag for the confirmatio of the selected mode by start button
 volatile bool displayTrackParcelsScreen = false;
 volatile bool displayRegisterParcelsScreen = false;
+volatile bool RFIDisOK = true;   // flag for RFID initialization
+volatile bool MODEMisOK = false; // flag for SIM808 initialization
+volatile bool GPRSisOK = false;  // flag for GPRS initialization
+volatile bool GPSisOK = false;   // flag for GPS initialization
 
-// variables to keep track of the timing of recent interrupts
+// variables to keep track of the timing of recent interrupts (button bouncing)
 unsigned long button_time = 0;
 unsigned long last_button_time = 0;
 
@@ -143,7 +155,7 @@ bool initDisplay(int screenAddress)
 // Function for testing OLED display - success
 void testDisplay()
 {
-  String data = "RFID: 12345678\nLocation: XYZ";
+  String data = "Testing display... Done!";
   // Update display
   display.clearDisplay();
   display.setTextSize(1);
@@ -223,23 +235,72 @@ void showWelcomeScreen()
   }
 }
 
-void showRegisterParcelsScreen()
+void displayInitializingProcess(const char *message, int &frame)
 {
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
-  display.setCursor(0, 16);
-  display.println("Scan RFID to Register");
+  display.setCursor(0, 40);
+  display.println("Please wait...");
+  display.setCursor(0, 55);
+  display.println(message);
+
+  // Draw the loading icon
+  display.setCursor(55, 8); // Position the loading icon
+  display.setTextSize(3);
+  display.print(loadingFrames[frame]);
+  display.display();
+
+  frame = (frame + 1) % numFrames; // Update the frame
+
+  delay(50); // Delay to control animation speed
+}
+
+void showRegisterParcelsScreen()
+{
+  int frame = 0;
+  while (!RFIDisOK)
+  {
+    displayInitializingProcess("Initializing RFID", frame);
+  }
+  while (!MODEMisOK)
+  {
+    displayInitializingProcess("Initializing MODEM", frame);
+  }
+  while (!GPRSisOK)
+  {
+    displayInitializingProcess("Initializing GPRS", frame);
+  }
+
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 50);
+  display.println("Device is ready..");
   display.display();
 }
 
 void showTrackParcelsScreen()
 {
+  int frame = 0;
+  while (!MODEMisOK)
+  {
+    displayInitializingProcess("Initializing MODEM", frame);
+  }
+  while (!GPRSisOK)
+  {
+    displayInitializingProcess("Initializing GPRS", frame);
+  }
+  while (!GPSisOK)
+  {
+    displayInitializingProcess("Initializing GPS", frame);
+  }
+
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
-  display.setCursor(0, 0);
-  display.println("Tracking Mode");
+  display.setCursor(0, 50);
+  display.println("Device is ready..");
   display.display();
 }
 
@@ -294,21 +355,25 @@ void showModeSelectionScreen()
 
 void setup()
 {
-  // Initialize the serial communication at 115200 baud rate
-  Serial.begin(115200);
-  // Wait for the serial port to connect (useful for some boards)
-  while (!Serial)
+
+  Serial.begin(115200); // Initialize the serial communication at 115200 baud rate
+  while (!Serial)       // Wait for the serial port to connect (useful for some boards)
   {
     ; // wait for serial port to connect. Needed for native USB
   }
   Serial.println("Serial Monitor Test: Hello, World!");
-  // Initialize the start button and mode select button
+
+  //-------------------------------------------------------------------------------------------
+  // Initialize the button
   pinMode(START_BUTTON.PIN, INPUT_PULLUP);
   pinMode(MODE_SELECT_BUTTON.PIN, INPUT_PULLUP);
-  // Attach interrupt to START_BUTTON pin
-  attachInterrupt(START_BUTTON.PIN, startButtonInterrupt, FALLING);
-  // Attach interrupt to MODE_SELECT_BUTTON pin
-  attachInterrupt(MODE_SELECT_BUTTON.PIN, modeSelectButtonInterrupt, FALLING);
+
+  //-------------------------------------------------------------------------------------------
+  attachInterrupt(START_BUTTON.PIN, startButtonInterrupt, FALLING);            // Attach interrupt to START_BUTTON pin
+  attachInterrupt(MODE_SELECT_BUTTON.PIN, modeSelectButtonInterrupt, FALLING); // Attach interrupt to MODE_SELECT_BUTTON pin
+
+  //-------------------------------------------------------------------------------------------
+  // Serial communication
   Wire.begin();
   esp_task_wdt_init(60, true); // 60 seconds timeout
   esp_task_wdt_add(NULL);      // Add current thread to WDT
@@ -338,11 +403,7 @@ void setup()
   showModeSelectionScreen();
 
   display.clearDisplay();
-}
 
-void loop()
-{
-  esp_task_wdt_reset(); // Reset the watchdog timer periodically
   if (displayRegisterParcelsScreen)
   {
     showRegisterParcelsScreen();
@@ -351,4 +412,9 @@ void loop()
   {
     showTrackParcelsScreen();
   }
+}
+
+void loop()
+{
+  esp_task_wdt_reset(); // Reset the watchdog timer periodically
 }
