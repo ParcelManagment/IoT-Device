@@ -3,7 +3,7 @@
 
 // RFID reader pins
 #define SS_PIN 5
-#define RST_PIN 22
+#define RST_PIN 4
 
 // Create an instance of the RFID reader
 MFRC522 rfid(SS_PIN, RST_PIN);
