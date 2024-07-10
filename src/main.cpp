@@ -1,3 +1,4 @@
+
 #include <Arduino.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
@@ -418,3 +419,5 @@ void loop()
 {
   esp_task_wdt_reset(); // Reset the watchdog timer periodically
 }
+=======
+
