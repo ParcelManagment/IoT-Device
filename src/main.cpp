@@ -43,10 +43,10 @@ volatile bool selectModeOption = true;      // Flag to select the operating mode
 volatile bool confirmMode = true;           // flag for the confirmatio of the selected mode by start button
 volatile bool displayTrackParcelsScreen = false;
 volatile bool displayRegisterParcelsScreen = false;
-volatile bool RFIDisOK = true;  // flag for RFID initialization
-volatile bool MODEMisOK = true; // flag for SIM808 initialization
-volatile bool GPRSisOK = true;  // flag for GPRS initialization
-volatile bool GPSisOK = true;   // flag for GPS initialization
+volatile bool RFIDisOK = false;  // flag for RFID initialization
+volatile bool MODEMisOK = false; // flag for SIM808 initialization
+volatile bool GPRSisOK = false;  // flag for GPRS initialization
+volatile bool GPSisOK = false;   // flag for GPS initialization
 
 // strutures for external button interrupts
 struct Button
