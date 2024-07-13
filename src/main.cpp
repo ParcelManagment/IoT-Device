@@ -17,33 +17,9 @@ const long intervalSlow = 1000;
 unsigned long previousMillis = 0;
 int ledState = LOW;
 
-// APN details for GPRS connection
-const char apn[] = "dialogbb";
-const char user[] = "";
-const char password[] = "";
-
 // Initialize HardwareSerial port
 HardwareSerial modemSerial(2); // Use UART2
 TinyGsm modem(modemSerial);
-
-// Function to test modem communication
-bool modemTest()
-{
-  Serial.println("Testing modem...");
-
-  // Send basic AT command to check communication
-  modemSerial.println("AT");
-  if (modemSerial.find("OK"))
-  {
-    Serial.println("Modem is responding to AT commands.");
-    return true;
-  }
-  else
-  {
-    Serial.println("No response from modem.");
-    return false;
-  }
-}
 
 // Function to indicate status with LEDs using millis for non-blocking delays
 void indicateStatus(int ledPin, int status)
@@ -77,112 +53,23 @@ void indicateStatus(int ledPin, int status)
   }
 }
 
-// Function to configure GPRS connection
-bool configureGPRS()
+// Function to test modem communication
+bool modemTest()
 {
-  Serial.println("Configuring GPRS...");
+  Serial.println("Testing modem...");
 
-  // Indicate trying to connect (fast blink)
-  indicateStatus(LED_GPRS, 0);
-
-  // Enable modem echo
-  modemSerial.println("ATE1");
-  delay(100);
-  if (!modemSerial.find("OK"))
+  // Send basic AT command to check communication
+  modemSerial.println("AT");
+  if (modemSerial.find("OK"))
   {
-    Serial.println("Failed to enable echo.");
+    Serial.println("Modem is responding to AT commands.");
+    return true;
+  }
+  else
+  {
+    Serial.println("No response from modem.");
     return false;
   }
-
-  // Enable verbose error reporting
-  modemSerial.println("AT+CMEE=2");
-  delay(100);
-  if (!modemSerial.find("OK"))
-  {
-    Serial.println("Failed to enable verbose error reporting.");
-    return false;
-  }
-
-  // Check network registration
-  modemSerial.println("AT+CREG?");
-  delay(100);
-  String response = modemSerial.readString();
-  Serial.println("Network registration status: " + response);
-  if (response.indexOf("+CREG: 0,1") == -1 && response.indexOf("+CREG: 0,5") == -1)
-  {
-    Serial.println("Modem not registered on network. Check SIM card and network.");
-    return false;
-  }
-
-  // Check GPRS attachment
-  modemSerial.println("AT+CGATT?");
-  delay(100);
-  response = modemSerial.readString();
-  Serial.println("GPRS attachment status: " + response);
-  if (response.indexOf("+CGATT: 1") == -1)
-  {
-    Serial.println("Modem not attached to GPRS. Check network and SIM card.");
-    return false;
-  }
-
-  // Reset PDP contexts
-  modemSerial.println("AT+CIPSHUT");
-  delay(100);
-  response = modemSerial.readString();
-  Serial.println("Reset PDP contexts: " + response);
-
-  // Set the APN
-  modemSerial.print("AT+CSTT=\"");
-  modemSerial.print(apn);
-  modemSerial.print("\",\"");
-  modemSerial.print(user);
-  modemSerial.print("\",\"");
-  modemSerial.print(password);
-  modemSerial.println("\"");
-  delay(100); // Add a small delay
-  response = modemSerial.readString();
-  if (response.indexOf("OK") == -1)
-  {
-    Serial.println("Failed to set APN. Response: " + response);
-    return false;
-  }
-
-  // Bring up the wireless connection
-  modemSerial.println("AT+CIICR");
-  delay(100); // Add a small delay
-  response = modemSerial.readString();
-  if (response.indexOf("OK") == -1)
-  {
-    Serial.println("Failed to bring up wireless connection. Response: " + response);
-    return false;
-  }
-
-  // Get the local IP address
-  modemSerial.println("AT+CIFSR");
-  delay(100); // Add a small delay
-  response = modemSerial.readString();
-  if (response.indexOf("ERROR") != -1)
-  {
-    Serial.println("Failed to get IP address. Response: " + response);
-    return false;
-  }
-
-  Serial.println("GPRS connected.");
-  return true;
-}
-
-
-
-
-
-
-// Function to check signal strength
-void checkSignalStrength()
-{
-  modemSerial.println("AT+CSQ");
-  String response = modemSerial.readString();
-  Serial.print("Signal strength: ");
-  Serial.println(response);
 }
 
 // Function to initialize the modem
@@ -217,36 +104,6 @@ bool initializeModem()
   indicateStatus(LED_MODEM, 1); // Indicate unable to connect
   return false;
 }
-
-// Function to establish GPRS connection
-bool establishGPRS()
-{
-  for (int attempt = 1; attempt <= MAX_RETRIES; attempt++)
-  {
-    Serial.printf("Attempt %d of %d to configure GPRS...\n", attempt, MAX_RETRIES);
-    indicateStatus(LED_GPRS, 0); // Indicate trying to connect
-
-    // Check signal strength before attempting GPRS configuration
-    checkSignalStrength();
-
-    if (configureGPRS())
-    {
-      Serial.println("GPRS configured successfully.");
-      indicateStatus(LED_GPRS, 2); // Indicate successfully connected
-      return true;
-    }
-    else
-    {
-      Serial.println("Failed to configure GPRS. Re-Trying...!");
-      delay(500);
-    }
-  }
-
-  Serial.println("GPRS failed to configure after maximum retries.");
-  indicateStatus(LED_GPRS, 1); // Indicate unable to connect
-  return false;
-}
-
 // Function to configure GPS
 bool configureGPS()
 {
@@ -386,7 +243,6 @@ void fetchGPSData()
     indicateStatus(LED_GPS, 1);
   }
 }
-
 void setup()
 {
   // Initialize serial communication for debugging
@@ -411,16 +267,6 @@ void setup()
     }
   }
 
-  // Establish GPRS connection
-  if (!establishGPRS())
-  {
-    Serial.println("GPRS configuration failed. Halting execution.");
-    while (true)
-    {
-      indicateStatus(LED_GPRS, 1); // Indicate unable to connect
-    }
-  }
-
   // Configure GPS
   if (!configureGPS())
   {
@@ -430,16 +276,17 @@ void setup()
       indicateStatus(LED_GPS, 1); // Indicate unable to connect
     }
   }
-
-  Serial.println("Modem, GPRS, and GPS configured successfully.");
-  indicateStatus(LED_MODEM, 2); // Indicate successfully connected
-  indicateStatus(LED_GPRS, 2);  // Indicate successfully connected
-  indicateStatus(LED_GPS, 2);   // Indicate successfully connected
 }
 
 void loop()
 {
-  // Fetch GPS data
-  fetchGPSData();
-  delay(5000); // Fetch GPS data every 5 seconds
+  // Fetch and print GPS data every 10 seconds
+  static unsigned long lastFetchTime = 0;
+  if (millis() - lastFetchTime >= 10000)
+  {
+    fetchGPSData();
+    lastFetchTime = millis();
+  }
+
+  // Add any other operations needed for your specific use case
 }
