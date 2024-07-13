@@ -3,16 +3,30 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <esp_task_wdt.h>
+#include "Pangodream_18650_CL.h"
 
 // OLED display dimensions
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64 // or 32 for smaller display
 #define OLED_RESET -1    // Reset pin # (or -1 if sharing Arduino reset pin)
-
 // LED Indicators
 #define DisplayErrorLED 12 // Indicate the errors occurred on the display
+#define CHARGING_PIN 13    // GPIO pin connected to CHRG pin of the charging module
+// Battery settings
+#define ADC_PIN 34
+#define CONV_FACTOR 1.8
+#define READS 20
 
+Pangodream_18650_CL BL(ADC_PIN, CONV_FACTOR, READS);                      // object in Pangodreaam_18650_CL class
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET); // Object in Adafruit_SSD1306 class
+
+// Global variables for signal strength and network type
+int signalStrength = 100;  // Example value
+String networkType = "3G"; // Example value
+
+// variables to keep track of the timing of recent interrupts (button bouncing)
+unsigned long button_time = 0;
+unsigned long last_button_time = 0;
 
 // Loading animation frames
 const char *loadingFrames[] = {
@@ -27,17 +41,14 @@ volatile bool SELECTMODE = false;           // prevent from unexpected button in
 volatile bool continueWelcomeScreen = true; // Flag to control showing welcome screen
 volatile bool selectModeOption = true;      // Flag to select the operating mode.
 volatile bool confirmMode = true;           // flag for the confirmatio of the selected mode by start button
-volatile bool displayTrackParcelsScreen = false;
+volatile bool displayTrackParcelsScreen = true;
 volatile bool displayRegisterParcelsScreen = false;
-volatile bool RFIDisOK = true;   // flag for RFID initialization
+volatile bool RFIDisOK = false;  // flag for RFID initialization
 volatile bool MODEMisOK = false; // flag for SIM808 initialization
 volatile bool GPRSisOK = false;  // flag for GPRS initialization
 volatile bool GPSisOK = false;   // flag for GPS initialization
 
-// variables to keep track of the timing of recent interrupts (button bouncing)
-unsigned long button_time = 0;
-unsigned long last_button_time = 0;
-
+// strutures for external button interrupts
 struct Button
 {
   const uint8_t PIN;
@@ -145,9 +156,11 @@ bool initDisplay(int screenAddress)
       Serial.println("Display initialization is successful");
       return true; // initialization is successful.
     }
+
     notifyUserAboutDisplayError("Warning: An error in display Initialization...Check the connections."); // notify about error
     delay(1000);
   }
+
   Serial.println("Display initialization has failed!");
   return false; // Initialization failed after 3 attempts
 }
@@ -155,14 +168,72 @@ bool initDisplay(int screenAddress)
 // Function for testing OLED display - success
 void testDisplay()
 {
-  String data = "Testing display... Done!";
+  String data1 = "Testing Display...";
+  String data2 = "Done!";
   // Update display
-  display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
-  display.setCursor(0, 0);
-  display.println(data);
+  display.setCursor(10, 25);
+  display.println(data1);
+  display.setCursor(50, 40);
+  display.println(data2);
   display.display();
+  delay(2000); // Wait before updating again
+}
+// Function for display the current operating mode
+void showOperateMode()
+{
+  String mode;
+  if (displayTrackParcelsScreen)
+  {
+    mode = "TM";
+  }
+  if (displayRegisterParcelsScreen)
+  {
+    mode = "RM";
+  }
+  display.setTextSize(1);
+  display.setCursor(50, 2);
+  display.print(mode);
+}
+
+// Function to draw the battery icon and text on the display
+void drawBatteryStatus()
+{
+  float volts = BL.getBatteryVolts();
+  int level = BL.getBatteryChargeLevel();
+  String status = String(level) + "%";
+
+  // Draw the battery icon outline
+  display.drawRect(SCREEN_WIDTH - 26, 0, 24, 12, SSD1306_WHITE); // Battery rectangle
+  display.fillRect(SCREEN_WIDTH - 4, 2, 2, 8, SSD1306_WHITE);    // Battery tip
+
+  // Fill the battery level
+  int batteryLevelWidth = map(level, 0, 100, 0, 20); // Map the battery level to a width
+  display.fillRect(SCREEN_WIDTH - 24, 2, batteryLevelWidth, 8, SSD1306_WHITE);
+
+  // Draw the battery percentage
+  display.setTextSize(1);
+  display.setCursor(SCREEN_WIDTH - 60, 2);
+  display.print(status);
+}
+
+// Updated function to draw the GPRS signal strength and network type on the display
+void drawSignalStatus()
+{
+  // Calculate the number of bars to display based on signal strength
+  int numBars = (signalStrength + 19) / 20; // Divide signal strength by 20 to get bars
+
+  // Draw the signal strength bars
+  for (int i = 0; i < numBars; i++)
+  {
+    display.fillRect(2 + (i * 6), 8 - (i * 2), 4, i * 2, SSD1306_WHITE);
+  }
+
+  // Draw the network type
+  display.setTextSize(1);
+  display.setCursor(33, 2);
+  display.print(networkType);
   delay(200); // Wait before updating again
 }
 
@@ -355,7 +426,10 @@ void showModeSelectionScreen()
 
 void setup()
 {
-
+  // Initialize the button
+  pinMode(START_BUTTON.PIN, INPUT_PULLUP);
+  pinMode(MODE_SELECT_BUTTON.PIN, INPUT_PULLUP);
+  // Initialize the serial communication at 115200 baud rate
   Serial.begin(115200); // Initialize the serial communication at 115200 baud rate
   while (!Serial)       // Wait for the serial port to connect (useful for some boards)
   {
@@ -364,19 +438,15 @@ void setup()
   Serial.println("Serial Monitor Test: Hello, World!");
 
   //-------------------------------------------------------------------------------------------
-  // Initialize the button
-  pinMode(START_BUTTON.PIN, INPUT_PULLUP);
-  pinMode(MODE_SELECT_BUTTON.PIN, INPUT_PULLUP);
-
-  //-------------------------------------------------------------------------------------------
   attachInterrupt(START_BUTTON.PIN, startButtonInterrupt, FALLING);            // Attach interrupt to START_BUTTON pin
   attachInterrupt(MODE_SELECT_BUTTON.PIN, modeSelectButtonInterrupt, FALLING); // Attach interrupt to MODE_SELECT_BUTTON pin
 
   //-------------------------------------------------------------------------------------------
-  // Serial communication
-  Wire.begin();
   esp_task_wdt_init(60, true); // 60 seconds timeout
   esp_task_wdt_add(NULL);      // Add current thread to WDT
+
+  // Serial communication
+  Wire.begin();
   int screenAddress = scanI2C();
   if (screenAddress == -1 || !initDisplay(screenAddress))
   {
@@ -388,6 +458,7 @@ void setup()
       esp_task_wdt_reset();                                                                                // Reset watchdog to prevent system reset
     }
   }
+
   display.display();
   delay(2000); // Pause for 2 seconds
   display.clearDisplay();
@@ -412,11 +483,35 @@ void setup()
   {
     showTrackParcelsScreen();
   }
+
+  display.display();
+  delay(2000); // Pause for 2 seconds
+  display.clearDisplay();
+
+  xTaskCreatePinnedToCore(
+      [](void *arg)
+      {
+        for (;;)
+        {
+          display.clearDisplay();
+          drawBatteryStatus();
+          drawSignalStatus();
+          showOperateMode();
+          display.display();
+          vTaskDelay(pdMS_TO_TICKS(1000));
+        }
+      },
+      "BatteryDisplayTask",
+      2048,
+      NULL,
+      1,
+      NULL,
+      1);
 }
 
 void loop()
 {
   esp_task_wdt_reset(); // Reset the watchdog timer periodically
+  testDisplay();        // Run the display function to test
+  delay(2000);          // Wait before running the next test
 }
-
-
