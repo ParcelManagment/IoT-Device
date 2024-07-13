@@ -21,7 +21,7 @@ Pangodream_18650_CL BL(ADC_PIN, CONV_FACTOR, READS);                      // obj
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET); // Object in Adafruit_SSD1306 class
 
 // Global variables for signal strength and network type
-int signalStrength = 70;   // Example value
+int signalStrength = 100;  // Example value
 String networkType = "3G"; // Example value
 
 // variables to keep track of the timing of recent interrupts (button bouncing)
@@ -41,7 +41,7 @@ volatile bool SELECTMODE = false;           // prevent from unexpected button in
 volatile bool continueWelcomeScreen = true; // Flag to control showing welcome screen
 volatile bool selectModeOption = true;      // Flag to select the operating mode.
 volatile bool confirmMode = true;           // flag for the confirmatio of the selected mode by start button
-volatile bool displayTrackParcelsScreen = false;
+volatile bool displayTrackParcelsScreen = true;
 volatile bool displayRegisterParcelsScreen = false;
 volatile bool RFIDisOK = false;  // flag for RFID initialization
 volatile bool MODEMisOK = false; // flag for SIM808 initialization
@@ -180,6 +180,22 @@ void testDisplay()
   display.display();
   delay(2000); // Wait before updating again
 }
+// Function for display the current operating mode
+void showOperateMode()
+{
+  String mode;
+  if (displayTrackParcelsScreen)
+  {
+    mode = "TM";
+  }
+  if (displayRegisterParcelsScreen)
+  {
+    mode = "RM";
+  }
+  display.setTextSize(1);
+  display.setCursor(50, 2);
+  display.print(mode);
+}
 
 // Function to draw the battery icon and text on the display
 void drawBatteryStatus()
@@ -216,7 +232,7 @@ void drawSignalStatus()
 
   // Draw the network type
   display.setTextSize(1);
-  display.setCursor(40, 2);
+  display.setCursor(33, 2);
   display.print(networkType);
   delay(200); // Wait before updating again
 }
@@ -480,6 +496,7 @@ void setup()
           display.clearDisplay();
           drawBatteryStatus();
           drawSignalStatus();
+          showOperateMode();
           display.display();
           vTaskDelay(pdMS_TO_TICKS(1000));
         }
