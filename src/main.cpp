@@ -48,6 +48,13 @@ String networkType = "3G"; // Example value
 unsigned long button_time = 0;
 unsigned long last_button_time = 0;
 
+//-------------------------------------------
+// Multitasking handler
+TaskHandle_t setupTaskHandle;
+TaskHandle_t initRegisterTaskHandle = NULL;
+TaskHandle_t initTrackTaskHandle = NULL;
+//-------------------------------------------
+
 // Loading animation frames
 const char *loadingFrames[] = {
     "|",
@@ -347,103 +354,6 @@ void displayInitializingProcess(const char *message, int &frame)
   delay(50); // Delay to control animation speed
 }
 
-void showRegisterParcelsScreen()
-{
-  int frame = 0;
-  while (!RFIDisOK)
-  {
-    displayInitializingProcess("Initializing RFID", frame);
-  }
-  while (!MODEMisOK)
-  {
-    displayInitializingProcess("Initializing MODEM", frame);
-  }
-  while (!GPRSisOK)
-  {
-    displayInitializingProcess("Initializing GPRS", frame);
-  }
-
-  display.clearDisplay();
-  display.setTextSize(1);
-  display.setTextColor(SSD1306_WHITE);
-  display.setCursor(0, 50);
-  display.println("Device is ready..");
-  display.display();
-}
-
-void showTrackParcelsScreen()
-{
-  int frame = 0;
-  while (!MODEMisOK)
-  {
-    displayInitializingProcess("Initializing MODEM", frame);
-  }
-  while (!GPRSisOK)
-  {
-    displayInitializingProcess("Initializing GPRS", frame);
-  }
-  while (!GPSisOK)
-  {
-    displayInitializingProcess("Initializing GPS", frame);
-  }
-
-  display.clearDisplay();
-  display.setTextSize(1);
-  display.setTextColor(SSD1306_WHITE);
-  display.setCursor(0, 50);
-  display.println("Device is ready..");
-  display.display();
-}
-
-void showModeSelectionScreen()
-{
-  display.clearDisplay();
-  const char *line1 = "Please select mode";
-  const char *mode1 = "1. Register Parcels";
-  const char *mode2 = "2. Track Parcels";
-  const char *confirmMessage = "Press START to confirm";
-  while (confirmMode)
-  {
-    display.clearDisplay();
-    display.setTextSize(1);
-    display.setTextColor(SSD1306_WHITE);
-    display.setCursor((SCREEN_WIDTH - display.width()) / 2, 0);
-    display.println(line1);
-    // Display modes with indication of selection
-    if (selectModeOption)
-    {
-      display.setCursor((SCREEN_WIDTH - display.width()) / 2, 20);
-      display.println("> " + String(mode1)); // Indicate selection
-      display.setCursor((SCREEN_WIDTH - display.width()) / 2, 36);
-      display.println("  " + String(mode2));
-    }
-    else
-    {
-      display.setCursor((SCREEN_WIDTH - display.width()) / 2, 20);
-      display.println("  " + String(mode1));
-      display.setCursor((SCREEN_WIDTH - display.width()) / 2, 36);
-      display.println("> " + String(mode2)); // Indicate selection
-    }
-    // Display confirmation message
-    display.setCursor((SCREEN_WIDTH - display.width()) / 2, 56);
-    display.println(confirmMessage);
-    display.display();
-    delay(100); // Add a small delay for debouncing
-  }
-  // Set the screen flag based on the selected mode
-  if (selectModeOption)
-  {
-    displayRegisterParcelsScreen = true;
-  }
-  else
-  {
-    displayTrackParcelsScreen = true;
-  }
-  // Reset flags for next operations
-  confirmMode = true;
-  selectModeOption = true;
-}
-
 // Function to indicate status with LEDs using millis for non-blocking delays
 void indicateStatus(int ledPin, int status)
 {
@@ -666,12 +576,176 @@ void fetchGPSData()
     indicateStatus(LED_GPS, 1);
   }
 }
+
+void initRegisterParcelMode()
+{
+  // Initialized RFID
+  delay(5000);     // must be deleted,only for testing since RFID initializing function is not created
+  RFIDisOK = true; // must be deleted,only for testing since RFID initializing function is not created
+
+  // Initialize modem
+  if (!initializeModem())
+  {
+    Serial.println("Modem initialization failed. Halting execution.");
+    while (true)
+    {
+      indicateStatus(LED_MODEM, 1); // Indicate unable to connect
+    }
+  }
+  MODEMisOK = true;
+  // Initialized GPRS
+  delay(5000);     // must be deleted,only for testing since GPRS initializing function is not created
+  GPRSisOK = true; // must be deleted,only for testing since GPRS initializing function is not created
+
+  // Notify the display task that initialization is complete
+  xTaskNotifyGive(initRegisterTaskHandle);
+}
+
+void showRegisterParcelsScreen()
+{
+  int frame = 0;
+  while (!RFIDisOK)
+  {
+    displayInitializingProcess("Initializing RFID", frame);
+  }
+
+  while (!MODEMisOK)
+  {
+    displayInitializingProcess("Initializing MODEM", frame);
+  }
+
+  while (!GPRSisOK)
+  {
+    displayInitializingProcess("Initializing GPRS", frame);
+  }
+
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 50);
+  display.println("Device is ready..");
+  display.display();
+
+  // Notify the setup function that the display task is complete
+  xTaskNotifyGive(setupTaskHandle);
+}
+
+void initTrackParcelMode()
+{
+  // Initialize modem
+  if (!initializeModem())
+  {
+    Serial.println("Modem initialization failed. Halting execution.");
+    while (true)
+    {
+      indicateStatus(LED_MODEM, 1); // Indicate unable to connect
+    }
+  }
+  MODEMisOK = true;
+
+  // Configure GPS
+  if (!configureGPS())
+  {
+    Serial.println("GPS configuration failed. Halting execution.");
+    while (true)
+    {
+      indicateStatus(LED_GPS, 1); // Indicate unable to connect
+    }
+  }
+  GPSisOK = true;
+
+  // Initialized GPRS
+  delay(5000);     // must be deleted,only for testing since GPRS initializing function is not created
+  GPRSisOK = true; // must be deleted,only for testing since GPRS initializing function is not created
+
+  // Notify the display task that initialization is complete
+  xTaskNotifyGive(initTrackTaskHandle);
+}
+
+void showTrackParcelsScreen()
+{
+  int frame = 0;
+  while (!MODEMisOK)
+  {
+    displayInitializingProcess("Initializing MODEM", frame);
+  }
+
+  while (!GPSisOK)
+  {
+    displayInitializingProcess("Initializing GPS", frame);
+  }
+
+  while (!GPRSisOK)
+  {
+    displayInitializingProcess("Initializing GPRS", frame);
+  }
+
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 50);
+  display.println("Device is ready..");
+  display.display();
+
+  // Notify the setup function that the display task is complete
+  xTaskNotifyGive(setupTaskHandle);
+}
+
+void showModeSelectionScreen()
+{
+  display.clearDisplay();
+  const char *line1 = "Please select mode";
+  const char *mode1 = "1. Register Parcels";
+  const char *mode2 = "2. Track Parcels";
+  const char *confirmMessage = "Press START to confirm";
+  while (confirmMode)
+  {
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor((SCREEN_WIDTH - display.width()) / 2, 0);
+    display.println(line1);
+    // Display modes with indication of selection
+    if (selectModeOption)
+    {
+      display.setCursor((SCREEN_WIDTH - display.width()) / 2, 20);
+      display.println("> " + String(mode1)); // Indicate selection
+      display.setCursor((SCREEN_WIDTH - display.width()) / 2, 36);
+      display.println("  " + String(mode2));
+    }
+    else
+    {
+      display.setCursor((SCREEN_WIDTH - display.width()) / 2, 20);
+      display.println("  " + String(mode1));
+      display.setCursor((SCREEN_WIDTH - display.width()) / 2, 36);
+      display.println("> " + String(mode2)); // Indicate selection
+    }
+    // Display confirmation message
+    display.setCursor((SCREEN_WIDTH - display.width()) / 2, 56);
+    display.println(confirmMessage);
+    display.display();
+    delay(100); // Add a small delay for debouncing
+  }
+  // Set the screen flag based on the selected mode
+  if (selectModeOption)
+  {
+    displayRegisterParcelsScreen = true;
+  }
+  else
+  {
+    displayTrackParcelsScreen = true;
+  }
+  // Reset flags for next operations
+  confirmMode = true;
+  selectModeOption = true;
+}
+
 void setup()
 {
- // Initialize the button
+  // Initialize the button
   pinMode(START_BUTTON.PIN, INPUT_PULLUP);
   pinMode(MODE_SELECT_BUTTON.PIN, INPUT_PULLUP);
-   // Initialize LED pins
+  // Initialize LED pins
   pinMode(LED_MODEM, OUTPUT);
   digitalWrite(LED_MODEM, LOW);
   pinMode(LED_GPRS, OUTPUT);
@@ -684,7 +758,7 @@ void setup()
   {
     ; // wait for serial port to connect. Needed for native USB
   }
-  Serial.println("Serial Monitor Test: Hello, World!");
+  Serial.println("Serial Monitor Test is successed: Hello, World!");
 
   //-------------------------------------------------------------------------------------------
   attachInterrupt(START_BUTTON.PIN, startButtonInterrupt, FALLING);            // Attach interrupt to START_BUTTON pin
@@ -707,7 +781,7 @@ void setup()
       esp_task_wdt_reset();                                                                                // Reset watchdog to prevent system reset
     }
   }
-  
+
   display.display();
   delay(2000); // Pause for 2 seconds
   display.clearDisplay();
@@ -721,37 +795,51 @@ void setup()
   }
   SELECTMODE = true; // Allow mode selection
   showModeSelectionScreen();
-  
-  // Initialize modem
-  if (!initializeModem())
-  {
-    Serial.println("Modem initialization failed. Halting execution.");
-    while (true)
-    {
-      indicateStatus(LED_MODEM, 1); // Indicate unable to connect
-    }
-  }
-
-  // Configure GPS
-  if (!configureGPS())
-  {
-    Serial.println("GPS configuration failed. Halting execution.");
-    while (true)
-    {
-      indicateStatus(LED_GPS, 1); // Indicate unable to connect
-    }
-  }
-
 
   display.clearDisplay();
 
   if (displayRegisterParcelsScreen)
   {
-    showRegisterParcelsScreen();
+    // Create the display task for register parcels screen
+    xTaskCreate(
+        [](void *arg)
+        {
+          showRegisterParcelsScreen();
+          vTaskDelete(NULL);
+        },
+        "RegisterDisplayTask",
+        2048,
+        NULL,
+        1,
+        &initRegisterTaskHandle); // Use separate task handle for each task
+
+    // Run the initialization function
+    initRegisterParcelMode();
+
+    // Wait for the register parcels display task to complete
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
   }
+
   if (displayTrackParcelsScreen)
   {
-    showTrackParcelsScreen();
+    // Create the display task for track parcels screen
+    xTaskCreate(
+        [](void *arg)
+        {
+          showTrackParcelsScreen();
+          vTaskDelete(NULL);
+        },
+        "TrackDisplayTask",
+        2048,
+        NULL,
+        1,
+        &initTrackTaskHandle); // Use separate task handle for each task
+
+    // Run the initialization function
+    initTrackParcelMode();
+
+    // Wait for the track parcels display task to complete
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
   }
 
   display.display();
@@ -777,12 +865,10 @@ void setup()
       1,
       NULL,
       1);
-
 }
 
 void loop()
 {
-
   // Fetch and print GPS data every 10 seconds
   static unsigned long lastFetchTime = 0;
   if (millis() - lastFetchTime >= 10000)
@@ -796,5 +882,4 @@ void loop()
   esp_task_wdt_reset(); // Reset the watchdog timer periodically
   testDisplay();        // Run the display function to test
   delay(2000);          // Wait before running the next test
-
 }
