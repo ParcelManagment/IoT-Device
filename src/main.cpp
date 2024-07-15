@@ -577,11 +577,11 @@ void fetchGPSData()
   }
 }
 
-void initRegisterParcelMode()
+void initRegisterParcelMode(void *pvParameters)
 {
-  // Initialized RFID
-  delay(5000);     // must be deleted,only for testing since RFID initializing function is not created
-  RFIDisOK = true; // must be deleted,only for testing since RFID initializing function is not created
+  // Initialize RFID
+  delay(5000);     // Must be removed in production, for testing only
+  RFIDisOK = true; // Must be removed in production, for testing only
 
   // Initialize modem
   if (!initializeModem())
@@ -593,15 +593,20 @@ void initRegisterParcelMode()
     }
   }
   MODEMisOK = true;
-  // Initialized GPRS
-  delay(5000);     // must be deleted,only for testing since GPRS initializing function is not created
-  GPRSisOK = true; // must be deleted,only for testing since GPRS initializing function is not created
+
+  // Initialize GPRS
+  delay(5000);     // Must be removed in production, for testing only
+  GPRSisOK = true; // Must be removed in production, for testing only
 
   // Notify the display task that initialization is complete
-  xTaskNotifyGive(initRegisterTaskHandle);
+  if (initRegisterTaskHandle != NULL)
+  {
+    xTaskNotifyGive(initRegisterTaskHandle);
+  }
+  vTaskDelete(NULL); // Delete the task once done
 }
 
-void showRegisterParcelsScreen()
+void showRegisterParcelsScreen(void *pvParameters)
 {
   int frame = 0;
   while (!RFIDisOK)
@@ -627,10 +632,14 @@ void showRegisterParcelsScreen()
   display.display();
 
   // Notify the setup function that the display task is complete
-  xTaskNotifyGive(setupTaskHandle);
+  if (setupTaskHandle != NULL)
+  {
+    xTaskNotifyGive(setupTaskHandle);
+  }
+  vTaskDelete(NULL); // Delete the task once done
 }
 
-void initTrackParcelMode()
+void initTrackParcelMode(void *pvParameters)
 {
   // Initialize modem
   if (!initializeModem())
@@ -654,15 +663,19 @@ void initTrackParcelMode()
   }
   GPSisOK = true;
 
-  // Initialized GPRS
-  delay(5000);     // must be deleted,only for testing since GPRS initializing function is not created
-  GPRSisOK = true; // must be deleted,only for testing since GPRS initializing function is not created
+  // Initialize GPRS
+  delay(5000);     // Must be removed in production, for testing only
+  GPRSisOK = true; // Must be removed in production, for testing only
 
   // Notify the display task that initialization is complete
-  xTaskNotifyGive(initTrackTaskHandle);
+  if (initTrackTaskHandle != NULL)
+  {
+    xTaskNotifyGive(initTrackTaskHandle);
+  }
+  vTaskDelete(NULL); // Delete the task once done
 }
 
-void showTrackParcelsScreen()
+void showTrackParcelsScreen(void *pvParameters)
 {
   int frame = 0;
   while (!MODEMisOK)
@@ -688,7 +701,11 @@ void showTrackParcelsScreen()
   display.display();
 
   // Notify the setup function that the display task is complete
-  xTaskNotifyGive(setupTaskHandle);
+  if (setupTaskHandle != NULL)
+  {
+    xTaskNotifyGive(setupTaskHandle);
+  }
+  vTaskDelete(NULL); // Delete the task once done
 }
 
 void showModeSelectionScreen()
@@ -765,8 +782,8 @@ void setup()
   attachInterrupt(MODE_SELECT_BUTTON.PIN, modeSelectButtonInterrupt, FALLING); // Attach interrupt to MODE_SELECT_BUTTON pin
 
   //-------------------------------------------------------------------------------------------
-  esp_task_wdt_init(60, true); // 60 seconds timeout
-  esp_task_wdt_add(NULL);      // Add current thread to WDT
+  esp_task_wdt_init(300, true); // 60 seconds timeout
+  esp_task_wdt_add(NULL);       // Add current thread to WDT
 
   // Serial communication
   Wire.begin();
@@ -798,47 +815,55 @@ void setup()
 
   display.clearDisplay();
 
+  // Get current task handle for notification
+  setupTaskHandle = xTaskGetCurrentTaskHandle();
+
+  // Process based on selected mode
   if (displayRegisterParcelsScreen)
   {
-    // Create the display task for register parcels screen
+    // Create display task for register parcels screen
     xTaskCreate(
-        [](void *arg)
-        {
-          showRegisterParcelsScreen();
-          vTaskDelete(NULL);
-        },
+        showRegisterParcelsScreen,
         "RegisterDisplayTask",
         2048,
         NULL,
         1,
-        &initRegisterTaskHandle); // Use separate task handle for each task
+        &initRegisterTaskHandle);
 
-    // Run the initialization function
-    initRegisterParcelMode();
+    // Initialize register parcels mode
+    xTaskCreate(
+        initRegisterParcelMode,
+        "InitRegisterTask",
+        2048,
+        NULL,
+        1,
+        NULL);
 
-    // Wait for the register parcels display task to complete
+    // Wait for register parcels display task to complete
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
   }
 
   if (displayTrackParcelsScreen)
   {
-    // Create the display task for track parcels screen
+    // Create display task for track parcels screen
     xTaskCreate(
-        [](void *arg)
-        {
-          showTrackParcelsScreen();
-          vTaskDelete(NULL);
-        },
+        showTrackParcelsScreen,
         "TrackDisplayTask",
         2048,
         NULL,
         1,
-        &initTrackTaskHandle); // Use separate task handle for each task
+        &initTrackTaskHandle);
 
-    // Run the initialization function
-    initTrackParcelMode();
+    // Initialize track parcels mode
+    xTaskCreate(
+        initTrackParcelMode,
+        "InitTrackTask",
+        2048,
+        NULL,
+        1,
+        NULL);
 
-    // Wait for the track parcels display task to complete
+    // Wait for track parcels display task to complete
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
   }
 
