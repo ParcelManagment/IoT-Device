@@ -28,6 +28,7 @@
 #define SERIAL_BAUD 115200
 #define MODEM_BAUD 9600
 #define MAX_RETRIES 5
+#define GPS_TIME_GAP 10000 // get gps data for each # of time gap
 
 // Initialize HardwareSerial port
 HardwareSerial modemSerial(2); // Use UART2
@@ -68,12 +69,13 @@ volatile bool SELECTMODE = false;           // prevent from unexpected button in
 volatile bool continueWelcomeScreen = true; // Flag to control showing welcome screen
 volatile bool selectModeOption = true;      // Flag to select the operating mode.
 volatile bool confirmMode = true;           // flag for the confirmatio of the selected mode by start button
-volatile bool displayTrackParcelsScreen = true;
+volatile bool displayTrackParcelsScreen = false;
 volatile bool displayRegisterParcelsScreen = false;
 volatile bool RFIDisOK = false;  // flag for RFID initialization
 volatile bool MODEMisOK = false; // flag for SIM808 initialization
 volatile bool GPRSisOK = false;  // flag for GPRS initialization
 volatile bool GPSisOK = false;   // flag for GPS initialization
+volatile bool initERROR = false; // flag for error in any module
 
 // strutures for external button interrupts
 struct Button
@@ -354,6 +356,21 @@ void displayInitializingProcess(const char *message, int &frame)
   delay(50); // Delay to control animation speed
 }
 
+// function for display error in initializing process
+void showInitializationError(const char *component)
+{
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(10, 10);
+  display.println(component);
+  display.setCursor(10, 30);
+  display.println("Initialization");
+  display.setCursor(10, 50);
+  display.println("Failed - Retry..");
+  display.display();
+}
+
 // Function to indicate status with LEDs using millis for non-blocking delays
 void indicateStatus(int ledPin, int status)
 {
@@ -580,8 +597,9 @@ void fetchGPSData()
 void initRegisterParcelMode(void *pvParameters)
 {
   // Initialize RFID
-  delay(5000);     // Must be removed in production, for testing only
-  RFIDisOK = true; // Must be removed in production, for testing only
+  delay(5000);       // Must be removed in production, for testing only
+  RFIDisOK = true;   // Must be removed in production, for testing only
+  initERROR = false; // Must be removed in production, for testing only
 
   // Initialize modem
   if (!initializeModem())
@@ -590,13 +608,16 @@ void initRegisterParcelMode(void *pvParameters)
     while (true)
     {
       indicateStatus(LED_MODEM, 1); // Indicate unable to connect
+      MODEMisOK = false;
+      initERROR = true;
     }
   }
   MODEMisOK = true;
 
   // Initialize GPRS
-  delay(5000);     // Must be removed in production, for testing only
-  GPRSisOK = true; // Must be removed in production, for testing only
+  delay(5000);       // Must be removed in production, for testing only
+  GPRSisOK = true;   // Must be removed in production, for testing only
+  initERROR = false; // Must be removed in production, for testing only
 
   // Notify the display task that initialization is complete
   if (initRegisterTaskHandle != NULL)
@@ -609,25 +630,38 @@ void initRegisterParcelMode(void *pvParameters)
 void showRegisterParcelsScreen(void *pvParameters)
 {
   int frame = 0;
-  while (!RFIDisOK)
+  //------------RFID-----------------
+  while (!RFIDisOK && !initERROR)
   {
     displayInitializingProcess("Initializing RFID", frame);
   }
-
-  while (!MODEMisOK)
+  while (!MODEMisOK && initERROR)
+  {
+    showInitializationError("RFID");
+  }
+  //-------------Modem---------------
+  while (!MODEMisOK && !initERROR)
   {
     displayInitializingProcess("Initializing MODEM", frame);
   }
-
-  while (!GPRSisOK)
+  while (!MODEMisOK && initERROR)
+  {
+    showInitializationError("MODEM");
+  }
+  //--------------GPRS----------------
+  while (!GPRSisOK && !initERROR)
   {
     displayInitializingProcess("Initializing GPRS", frame);
+  }
+  while (!GPRSisOK && initERROR)
+  {
+    showInitializationError("GPRS");
   }
 
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
-  display.setCursor(0, 50);
+  display.setCursor(10, 50);
   display.println("Device is ready..");
   display.display();
 
@@ -696,7 +730,7 @@ void showTrackParcelsScreen(void *pvParameters)
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
-  display.setCursor(0, 50);
+  display.setCursor(10, 50);
   display.println("Device is ready..");
   display.display();
 
@@ -747,10 +781,12 @@ void showModeSelectionScreen()
   if (selectModeOption)
   {
     displayRegisterParcelsScreen = true;
+    displayTrackParcelsScreen = false;
   }
   else
   {
     displayTrackParcelsScreen = true;
+    displayRegisterParcelsScreen = false;
   }
   // Reset flags for next operations
   confirmMode = true;
@@ -896,7 +932,7 @@ void loop()
 {
   // Fetch and print GPS data every 10 seconds
   static unsigned long lastFetchTime = 0;
-  if (millis() - lastFetchTime >= 10000)
+  if (millis() - lastFetchTime >= GPS_TIME_GAP)
   {
     fetchGPSData();
     lastFetchTime = millis();
