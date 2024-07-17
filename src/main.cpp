@@ -613,6 +613,7 @@ void initRegisterParcelMode(void *pvParameters)
     }
   }
   MODEMisOK = true;
+  initERROR = false;
 
   // Initialize GPRS
   delay(5000);       // Must be removed in production, for testing only
@@ -682,9 +683,12 @@ void initTrackParcelMode(void *pvParameters)
     while (true)
     {
       indicateStatus(LED_MODEM, 1); // Indicate unable to connect
+      MODEMisOK = false;
+      initERROR = true;
     }
   }
   MODEMisOK = true;
+  initERROR = false;
 
   // Configure GPS
   if (!configureGPS())
@@ -693,13 +697,17 @@ void initTrackParcelMode(void *pvParameters)
     while (true)
     {
       indicateStatus(LED_GPS, 1); // Indicate unable to connect
+      GPSisOK = false;
+      initERROR = true;
     }
   }
   GPSisOK = true;
+  initERROR = false;
 
   // Initialize GPRS
   delay(5000);     // Must be removed in production, for testing only
   GPRSisOK = true; // Must be removed in production, for testing only
+  initERROR = false;
 
   // Notify the display task that initialization is complete
   if (initTrackTaskHandle != NULL)
@@ -712,19 +720,32 @@ void initTrackParcelMode(void *pvParameters)
 void showTrackParcelsScreen(void *pvParameters)
 {
   int frame = 0;
-  while (!MODEMisOK)
+  //----------Modem----------
+  while (!MODEMisOK && !initERROR)
   {
     displayInitializingProcess("Initializing MODEM", frame);
   }
-
-  while (!GPSisOK)
+  while (!MODEMisOK && initERROR)
+  {
+    showInitializationError("MODEM");
+  }
+  //-----------GPS--------------
+  while (!GPSisOK && !initERROR)
   {
     displayInitializingProcess("Initializing GPS", frame);
   }
-
-  while (!GPRSisOK)
+  while (!GPSisOK && initERROR)
+  {
+    showInitializationError("GPS");
+  }
+  //----------GPRS--------------
+  while (!GPRSisOK && !initERROR)
   {
     displayInitializingProcess("Initializing GPRS", frame);
+  }
+  while (!GPRSisOK && initERROR)
+  {
+    showInitializationError("GPRS");
   }
 
   display.clearDisplay();
