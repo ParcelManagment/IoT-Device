@@ -30,6 +30,7 @@
 #define LED_MODEM 2 // LED pin for modem status indication
 #define LED_GPRS 4  // LED pin for GPRS status indication
 #define LED_GPS 13  // LED pin for GPS status indication
+#define LED_RFID 31 // LED pin for RFID status indication
 #define SERIAL_BAUD 115200
 #define MODEM_BAUD 9600
 #define MAX_RETRIES 5
@@ -648,9 +649,18 @@ void fetchGPSData()
 void initRegisterParcelMode(void *pvParameters)
 {
   // Initialize RFID
-  delay(5000);       // Must be removed in production, for testing only
-  RFIDisOK = true;   // Must be removed in production, for testing only
-  initERROR = false; // Must be removed in production, for testing only
+  if(!initializeRFID())
+  {
+    Serial.println("RFID initialization failed. Halting execution.");
+    while (true)
+    {
+      indicateStatus(LED_RFID, 1); // Indicate unable to connect
+      RFIDisOK = false;
+      initERROR = true;
+    }
+  }
+  RFIDisOK = true;   
+  initERROR = false; 
 
   // Initialize modem
   if (!initializeModem())
