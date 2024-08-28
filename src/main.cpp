@@ -197,7 +197,7 @@ bool initDisplay(int screenAddress)
       return true; // initialization is successful.
     }
 
-    notifyUserAboutDisplayError("Warning: An error in display Initialization...Check the connections."); // notify about error
+    notifyUserAboutDisplayError("Warning: An error in display Initialization...Check the connections.Retrying..."); // notify about error
     delay(1000);
   }
 
@@ -413,6 +413,46 @@ void indicateStatus(int ledPin, int status)
     break;
   }
 }
+
+//function for initialized the modem
+bool initializeRFID()
+{
+  const int maxRetries = 5;      // Maximum number of retries
+  int retryCount = 0;            // Counter for retries
+
+  // Initialize SPI bus
+  SPI.begin();
+
+  // Attempt to initialize the RFID reader, with retries if it fails
+  while (retryCount < maxRetries)
+  {
+    // Initialize RFID reader
+    rfid.PCD_Init();
+
+    // Check if RFID reader is properly initialized by reading the version register
+    byte version = rfid.PCD_ReadRegister(rfid.VersionReg);
+    if (version != 0x00 && version != 0xFF)
+    {
+      Serial.print("RFID reader initialized successfully. Version: ");
+      Serial.println(version, HEX);
+      return true;  // Initialization succeeded
+    }
+    else
+    {
+      retryCount++;
+      Serial.print("RFID reader initialization failed! Retry ");
+      Serial.print(retryCount);
+      Serial.print(" of ");
+      Serial.println(maxRetries);
+      delay(1000);  // Wait for a short period before retrying
+    }
+  }
+
+  // If initialization failed after all retries, return false
+  Serial.println("RFID reader failed to initialize after maximum retries.");
+  return false;
+}
+
 
 // Function to test modem communication
 bool modemTest()
