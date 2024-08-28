@@ -5,7 +5,12 @@
 #include <Adafruit_SSD1306.h>
 #include <esp_task_wdt.h>
 #include "Pangodream_18650_CL.h"
+#include <SPI.h>
+#include <MFRC522.h>
 
+// RFID reader pins
+#define SS_PIN 5
+#define RST_PIN 4
 // OLED display dimensions
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64 // or 32 for smaller display
@@ -30,17 +35,23 @@
 #define MAX_RETRIES 5
 #define GPS_TIME_GAP 10000 // get gps data for each # of time gap
 
+//------------------------------------------------
+// Create an instance of the RFID reader
+MFRC522 rfid(SS_PIN, RST_PIN);
+// String to hold the RFID Tag ID
+String tagUID = "";
+//------------------------------------------------
 // Initialize HardwareSerial port
 HardwareSerial modemSerial(2); // Use UART2
 TinyGsm modem(modemSerial);
 Pangodream_18650_CL BL(ADC_PIN, CONV_FACTOR, READS);                      // object in Pangodreaam_18650_CL class
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET); // Object in Adafruit_SSD1306 class
-//--------------------------------------------
+//------------------------------------------------
 const long intervalFast = 100;
 const long intervalSlow = 1000;
 unsigned long previousMillis = 0;
 int ledState = LOW;
-//--------------------------------------------
+//------------------------------------------------
 // Global variables for signal strength and network type
 int signalStrength = 100;  // Example value
 String networkType = "3G"; // Example value
