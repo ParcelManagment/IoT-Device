@@ -415,11 +415,11 @@ void indicateStatus(int ledPin, int status)
   }
 }
 
-//function for initialized the modem
+// function for initialized the modem
 bool initializeRFID()
 {
-  const int maxRetries = 5;      // Maximum number of retries
-  int retryCount = 0;            // Counter for retries
+  const int maxRetries = 5; // Maximum number of retries
+  int retryCount = 0;       // Counter for retries
 
   // Initialize SPI bus
   SPI.begin();
@@ -436,7 +436,7 @@ bool initializeRFID()
     {
       Serial.print("RFID reader initialized successfully. Version: ");
       Serial.println(version, HEX);
-      return true;  // Initialization succeeded
+      return true; // Initialization succeeded
     }
     else
     {
@@ -445,7 +445,7 @@ bool initializeRFID()
       Serial.print(retryCount);
       Serial.print(" of ");
       Serial.println(maxRetries);
-      delay(1000);  // Wait for a short period before retrying
+      delay(1000); // Wait for a short period before retrying
     }
   }
 
@@ -453,7 +453,6 @@ bool initializeRFID()
   Serial.println("RFID reader failed to initialize after maximum retries.");
   return false;
 }
-
 
 // Function to test modem communication
 bool modemTest()
@@ -646,10 +645,69 @@ void fetchGPSData()
   }
 }
 
+// RFID functions.....
+//.........................................................
+// function for store the Tag ID
+void storeUID()
+{
+  // Store UID in a String
+  tagUID = "";
+  for (byte i = 0; i < rfid.uid.size; i++)
+  {
+    if (rfid.uid.uidByte[i] < 0x10)
+    {
+      tagUID += " 0";
+    }
+    else
+    {
+      tagUID += " ";
+    }
+    tagUID += String(rfid.uid.uidByte[i], HEX);
+  }
+
+  Serial.print("RFID Tag ID stored: ");
+  Serial.println(tagUID);
+}
+
+// function for handle the RFID card.................................
+void handleCardDetection()
+{
+  // Look for new cards
+  if (!rfid.PICC_IsNewCardPresent())
+  {
+    return;
+  }
+
+  // Select one of the cards
+  if (!rfid.PICC_ReadCardSerial())
+  {
+    return;
+  }
+
+  // Store the UID of the detected card
+  storeUID();
+
+  // Halt PICC to stop reading the same card
+  rfid.PICC_HaltA();
+
+  // Stop encryption on PCD
+  rfid.PCD_StopCrypto1();
+}
+
+// function for send RFID data to the cloud...........................
+void sendRFIDToCloud()
+{
+  // Example function to send RFID tag ID to a cloud server
+  Serial.print("Sending RFID Tag ID to cloud: ");
+  Serial.println(tagUID);
+  // Implement your cloud communication logic here
+}
+
+//-------------------------------------------------------------------------------
 void initRegisterParcelMode(void *pvParameters)
 {
   // Initialize RFID
-  if(!initializeRFID())
+  if (!initializeRFID())
   {
     Serial.println("RFID initialization failed. Halting execution.");
     while (true)
@@ -659,8 +717,8 @@ void initRegisterParcelMode(void *pvParameters)
       initERROR = true;
     }
   }
-  RFIDisOK = true;   
-  initERROR = false; 
+  RFIDisOK = true;
+  initERROR = false;
 
   // Initialize modem
   if (!initializeModem())
