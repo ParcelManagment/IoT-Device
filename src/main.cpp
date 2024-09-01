@@ -804,6 +804,20 @@ void showRegisterParcelsScreen(void *pvParameters)
 
 void initTrackParcelMode(void *pvParameters)
 {
+  // Initialize RFID
+  if (!initializeRFID())
+  {
+    Serial.println("RFID initialization failed. Halting execution.");
+    while (true)
+    {
+      indicateStatus(LED_RFID, 1); // Indicate unable to connect
+      RFIDisOK = false;
+      initERROR = true;
+    }
+  }
+  RFIDisOK = true;
+  initERROR = false;
+
   // Initialize modem
   if (!initializeModem())
   {
@@ -838,7 +852,7 @@ void initTrackParcelMode(void *pvParameters)
   initERROR = false;
 
   // Set the working mode as Track
-  if (RFIDisOK && MODEMisOK && GPRSisOK && !initERROR)
+  if (RFIDisOK && MODEMisOK && GPSisOK && GPRSisOK && !initERROR)
   {
     inTrackMode = true;
     inRegisterMode = false;
