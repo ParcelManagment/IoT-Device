@@ -57,6 +57,9 @@ int ledState = LOW;
 int signalStrength = 100;  // Example value
 String networkType = "3G"; // Example value
 
+// variablr for hadle the debug count
+int debugButtonPressCount = 0;
+
 // variables to keep track of the timing of recent interrupts (button bouncing)
 unsigned long button_time = 0;
 unsigned long last_button_time = 0;
@@ -146,6 +149,27 @@ void IRAM_ATTR scanButtonInterrupt()
     else if (START && inRegisterMode)
     {
       EnableSCAN = !EnableSCAN; // have to handle this function more reliable
+    }
+  }
+}
+
+void IRAM_ATTR debugButtonInterrupt()
+{
+  button_time = millis();
+  if (button_time - last_button_time > 250)
+  {
+    if (debugButtonPressCount < 5)
+    {
+      debugButtonPressCount++;
+    }
+    else if (debugButtonPressCount = 5)
+    {
+      if (!DEBUGMODE)
+      {
+        DEBUGMODE = true;
+        Serial.begin(115200);
+        debugButtonPressCount = 0;
+      }
     }
   }
 }
