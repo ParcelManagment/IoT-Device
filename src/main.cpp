@@ -418,14 +418,14 @@ void indicateStatus(int ledPin, int status)
 // function for initialized the modem
 bool initializeRFID()
 {
-  const int maxRetries = 5; // Maximum number of retries
-  int retryCount = 0;       // Counter for retries
+
+  int retryCount = 0; // Counter for retries
 
   // Initialize SPI bus
   SPI.begin();
 
   // Attempt to initialize the RFID reader, with retries if it fails
-  while (retryCount < maxRetries)
+  while (retryCount < MAX_RETRIES)
   {
     // Initialize RFID reader
     rfid.PCD_Init();
@@ -444,7 +444,7 @@ bool initializeRFID()
       Serial.print("RFID reader initialization failed! Retry ");
       Serial.print(retryCount);
       Serial.print(" of ");
-      Serial.println(maxRetries);
+      Serial.println(MAX_RETRIES);
       delay(1000); // Wait for a short period before retrying
     }
   }
