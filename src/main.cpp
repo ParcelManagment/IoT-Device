@@ -76,6 +76,7 @@ const char *loadingFrames[] = {
     "\\"};
 const int numFrames = 4;
 
+volatile bool DEBUGMODE = false;            // Variable for save the debug mode is on or off
 volatile bool START = false;                // prevent from unexpected button inputs.
 volatile bool SELECTMODE = false;           // prevent from unexpected button inputs.
 volatile bool continueWelcomeScreen = true; // Flag to control showing welcome screen
@@ -90,6 +91,7 @@ volatile bool GPSisOK = false;        // flag for GPS initialization
 volatile bool initERROR = false;      // flag for error in any module
 volatile bool inTrackMode = false;    // flag for Identify the current working mode as Track mode
 volatile bool inRegisterMode = false; // flag for Identify the current working mode as Register mode
+volatile bool EnableSCAN = false;     // flag for turn on or Off RFID SCAN
 
 // strutures for external button interrupts
 struct Button
@@ -99,6 +101,8 @@ struct Button
 
 Button START_BUTTON = {32};
 Button MODE_SELECT_BUTTON = {33};
+Button SCAN_BUTTON = {};
+Button DEBUG_BUTTON = {};
 
 void IRAM_ATTR startButtonInterrupt()
 {
@@ -127,6 +131,22 @@ void IRAM_ATTR modeSelectButtonInterrupt()
       selectModeOption = !selectModeOption;
     }
     last_button_time = button_time;
+  }
+}
+
+void IRAM_ATTR scanButtonInterrupt()
+{
+  button_time = millis();
+  if (button_time - last_button_time > 250)
+  {
+    if (START && inTrackMode)
+    {
+      // have to handle this function more reliable
+    }
+    else if (START && inRegisterMode)
+    {
+      EnableSCAN = !EnableSCAN; // have to handle this function more reliable
+    }
   }
 }
 
