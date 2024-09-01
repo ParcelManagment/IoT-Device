@@ -421,8 +421,8 @@ void indicateStatus(int ledPin, int status)
 bool initializeRFID()
 {
 
-  int retryCount = 0; // Counter for retries
-
+  int retryCount = 0;          // Counter for retries
+  indicateStatus(LED_RFID, 0); // Indicate trying to connect
   // Initialize SPI bus
   SPI.begin();
 
@@ -438,7 +438,8 @@ bool initializeRFID()
     {
       Serial.print("RFID reader initialized successfully. Version: ");
       Serial.println(version, HEX);
-      return true; // Initialization succeeded
+      indicateStatus(LED_RFID, 2); // Indicate successfully connected
+      return true;                 // Initialization succeeded
     }
     else
     {
@@ -453,6 +454,7 @@ bool initializeRFID()
 
   // If initialization failed after all retries, return false
   Serial.println("RFID reader failed to initialize after maximum retries.");
+  indicateStatus(LED_RFID, 1); // Indicate unable to connect
   return false;
 }
 
