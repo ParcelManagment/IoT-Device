@@ -1021,6 +1021,8 @@ void setup()
   digitalWrite(LED_GPRS, LOW);
   pinMode(LED_GPS, OUTPUT);
   digitalWrite(LED_GPS, LOW);
+  pinMode(LED_RFID, OUTPUT);
+  digitalWrite(LED_RFID, LOW);
   // Initialize the serial communication at 115200 baud rate
   Serial.begin(115200); // Initialize the serial communication at 115200 baud rate
   while (!Serial)       // Wait for the serial port to connect (useful for some boards)
@@ -1032,6 +1034,8 @@ void setup()
   //-------------------------------------------------------------------------------------------
   attachInterrupt(START_BUTTON.PIN, startButtonInterrupt, FALLING);            // Attach interrupt to START_BUTTON pin
   attachInterrupt(MODE_SELECT_BUTTON.PIN, modeSelectButtonInterrupt, FALLING); // Attach interrupt to MODE_SELECT_BUTTON pin
+  attachInterrupt(DEBUG_BUTTON.PIN, debugButtonInterrupt, FALLING);            // Attach interrupt to DEBUG_BUTTON pin
+  attachInterrupt(SCAN_BUTTON.PIN, scanButtonInterrupt, FALLING);              // Attach interrupt to DEBUG_BUTTON pin
 
   //-------------------------------------------------------------------------------------------
   esp_task_wdt_init(300, true); // 60 seconds timeout
