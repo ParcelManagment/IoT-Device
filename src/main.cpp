@@ -83,11 +83,13 @@ volatile bool selectModeOption = true;      // Flag to select the operating mode
 volatile bool confirmMode = true;           // flag for the confirmatio of the selected mode by start button
 volatile bool displayTrackParcelsScreen = false;
 volatile bool displayRegisterParcelsScreen = false;
-volatile bool RFIDisOK = false;  // flag for RFID initialization
-volatile bool MODEMisOK = false; // flag for SIM808 initialization
-volatile bool GPRSisOK = false;  // flag for GPRS initialization
-volatile bool GPSisOK = false;   // flag for GPS initialization
-volatile bool initERROR = false; // flag for error in any module
+volatile bool RFIDisOK = false;       // flag for RFID initialization
+volatile bool MODEMisOK = false;      // flag for SIM808 initialization
+volatile bool GPRSisOK = false;       // flag for GPRS initialization
+volatile bool GPSisOK = false;        // flag for GPS initialization
+volatile bool initERROR = false;      // flag for error in any module
+volatile bool inTrackMode = false;    // flag for Identify the current working mode as Track mode
+volatile bool inRegisterMode = false; // flag for Identify the current working mode as Register mode
 
 // strutures for external button interrupts
 struct Button
@@ -739,6 +741,13 @@ void initRegisterParcelMode(void *pvParameters)
   GPRSisOK = true;   // Must be removed in production, for testing only
   initERROR = false; // Must be removed in production, for testing only
 
+  // Set the working mode as Register
+  if (RFIDisOK && MODEMisOK && GPRSisOK && !initERROR)
+  {
+    inRegisterMode = true;
+    inTrackMode = false;
+  }
+
   // Notify the display task that initialization is complete
   if (initRegisterTaskHandle != NULL)
   {
@@ -827,6 +836,13 @@ void initTrackParcelMode(void *pvParameters)
   delay(5000);     // Must be removed in production, for testing only
   GPRSisOK = true; // Must be removed in production, for testing only
   initERROR = false;
+
+  // Set the working mode as Track
+  if (RFIDisOK && MODEMisOK && GPRSisOK && !initERROR)
+  {
+    inTrackMode = true;
+    inRegisterMode = false;
+  }
 
   // Notify the display task that initialization is complete
   if (initTrackTaskHandle != NULL)
