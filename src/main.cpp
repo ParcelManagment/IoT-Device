@@ -7,6 +7,7 @@
 #include "Pangodream_18650_CL.h"
 #include <SPI.h>
 #include <MFRC522.h>
+#include <esp_system.h> // ESP-IDF system functions
 
 // RFID reader pins
 #define SS_PIN 5
@@ -56,6 +57,9 @@ int ledState = LOW;
 // Global variables for signal strength and network type
 int signalStrength = 100;  // Example value
 String networkType = "3G"; // Example value
+
+// Global variable to store the MAC address as a string
+String deviceMAC;
 
 // variablr for hadle the debug count
 int debugButtonPressCount = 0;
@@ -173,6 +177,30 @@ void IRAM_ATTR debugButtonInterrupt()
     }
   }
 }
+
+//Function to Read and Store the MAC Address in deviceMAC variable.
+void readMACAddress()
+{
+  uint8_t mac[6];
+  
+  // Retrieve the MAC address from the system
+  esp_efuse_mac_get_default(mac);
+
+  // Format the MAC address as a string
+  deviceMAC = String(mac[0], HEX) + ":" +
+              String(mac[1], HEX) + ":" +
+              String(mac[2], HEX) + ":" +
+              String(mac[3], HEX) + ":" +
+              String(mac[4], HEX) + ":" +
+              String(mac[5], HEX);
+
+  // Convert to uppercase for better readability
+  deviceMAC.toUpperCase();
+
+  // Print MAC address
+  Serial.println(deviceMAC);
+}
+
 
 // I2C Scanner Function
 int scanI2C()
