@@ -178,11 +178,11 @@ void IRAM_ATTR debugButtonInterrupt()
   }
 }
 
-//Function to Read and Store the MAC Address in deviceMAC variable.
+// Function to Read and Store the MAC Address in deviceMAC variable.
 void readMACAddress()
 {
   uint8_t mac[6];
-  
+
   // Retrieve the MAC address from the system
   esp_efuse_mac_get_default(mac);
 
@@ -200,7 +200,6 @@ void readMACAddress()
   // Print MAC address
   Serial.println(deviceMAC);
 }
-
 
 // I2C Scanner Function
 int scanI2C()
@@ -1042,14 +1041,21 @@ void setup()
   // Initialize the button
   pinMode(START_BUTTON.PIN, INPUT_PULLUP);
   pinMode(MODE_SELECT_BUTTON.PIN, INPUT_PULLUP);
+  pinMode(DEBUG_BUTTON.PIN, INPUT_PULLUP);
+  pinMode(SCAN_BUTTON.PIN, INPUT_PULLUP);
   // Initialize LED pins
   pinMode(LED_MODEM, OUTPUT);
-  digitalWrite(LED_MODEM, LOW);
   pinMode(LED_GPRS, OUTPUT);
-  digitalWrite(LED_GPRS, LOW);
   pinMode(LED_GPS, OUTPUT);
-  digitalWrite(LED_GPS, LOW);
   pinMode(LED_RFID, OUTPUT);
+  digitalWrite(LED_MODEM, HIGH);
+  digitalWrite(LED_GPRS, HIGH);
+  digitalWrite(LED_GPS, HIGH);
+  digitalWrite(LED_RFID, HIGH);
+  delay(3000);
+  digitalWrite(LED_MODEM, LOW);
+  digitalWrite(LED_GPRS, LOW);
+  digitalWrite(LED_GPS, LOW);
   digitalWrite(LED_RFID, LOW);
   // Initialize the serial communication at 115200 baud rate
   Serial.begin(115200); // Initialize the serial communication at 115200 baud rate
