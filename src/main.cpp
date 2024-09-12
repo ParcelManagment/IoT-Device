@@ -719,7 +719,16 @@ void fetchGPSData()
     indicateStatus(LED_GPS, 1);
   }
 }
-
+// Serial Monitor Activation Confirmer function
+void ensureSerialMonitorActive()
+{
+  if (!Serial)
+  {
+    Serial.begin(115200);
+    while (!Serial)
+      ; // Wait for Serial to be ready
+  }
+}
 // RFID functions.....
 //.........................................................
 // function for store the Tag ID
