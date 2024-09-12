@@ -748,7 +748,7 @@ void storeUID()
     }
     tagUID += String(rfid.uid.uidByte[i], HEX);
   }
-
+  ensureSerialMonitorActive();
   Serial.print("RFID Tag ID stored: ");
   Serial.println(tagUID);
 }
