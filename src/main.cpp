@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <TinyGsmClient.h>
+#include <string.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
@@ -9,29 +10,32 @@
 #include <MFRC522.h>
 #include <esp_system.h> // ESP-IDF system functions
 
-// RFID reader pins
-#define SS_PIN 5
-#define RST_PIN 4
 // OLED display dimensions
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64 // or 32 for smaller display
 #define OLED_RESET -1    // Reset pin # (or -1 if sharing Arduino reset pin)
 // LED Indicators
-#define DisplayErrorLED 12 // Indicate the errors occurred on the display
-#define CHARGING_PIN 13    // GPIO pin connected to CHRG pin of the charging module
+#define CHARGING_PIN 13 // GPIO pin connected to CHRG pin of the charging module
 // Battery settings
 #define ADC_PIN 34
 #define CONV_FACTOR 1.8
 #define READS 20
 //--------------------------------------------
-// Define constants for serial communication and LED indication
-#define MODEM_TX 17 // Connect to SIM808 RX
-#define MODEM_RX 16 // Connect to SIM808 TX
-#define MODEM_RST 5 // Optional, connect to SIM808 RST
-#define LED_MODEM 2 // LED pin for modem status indication
-#define LED_GPRS 4  // LED pin for GPRS status indication
-#define LED_GPS 13  // LED pin for GPS status indication
-#define LED_RFID 31 // LED pin for RFID status indication
+// Define LED indication
+#define MODEM_TX 17        // Connect to SIM808 RX
+#define MODEM_RX 16        // Connect to SIM808 TX
+#define MODEM_RST 5        // Optional, connect to SIM808 RST
+#define LED_MODEM 2        // LED pin for modem status indication
+#define LED_GPRS 4         // LED pin for GPRS status indication
+#define LED_GPS 13         // LED pin for GPS status indication
+#define LED_RFID 31        // LED pin for RFID status indication
+#define DisplayErrorLED 12 // LED pin for display status indication
+
+// RFID reader pins
+#define SS_PIN 5
+#define RST_PIN 4
+
+// Communication protocol config.
 #define SERIAL_BAUD 115200
 #define MODEM_BAUD 9600
 #define MAX_RETRIES 5
@@ -83,12 +87,18 @@ const char *loadingFrames[] = {
     "\\"};
 const int numFrames = 4;
 
-volatile bool DEBUGMODE = false;            // Variable for save the debug mode is on or off
-volatile bool START = false;                // prevent from unexpected button inputs.
-volatile bool SELECTMODE = false;           // prevent from unexpected button inputs.
-volatile bool continueWelcomeScreen = true; // Flag to control showing welcome screen
-volatile bool selectModeOption = true;      // Flag to select the operating mode.
-volatile bool confirmMode = true;           // flag for the confirmatio of the selected mode by start button
+// Change this to your desired password
+const char *correctPassword = "your_password";
+// Bool Var for setup process
+volatile bool DEBUGMODE = false;                        // Variable for save the debug mode is on or off
+volatile bool debugButtonPressed = false;               //
+volatile bool awaitingDebugDisableConfirmation = false; //
+volatile bool debugModeInStart = false;                 //
+volatile bool START = false;                            // prevent from unexpected button inputs.
+volatile bool SELECTMODE = false;                       // prevent from unexpected button inputs.
+volatile bool continueWelcomeScreen = true;             // Flag to control showing welcome screen
+volatile bool selectModeOption = true;                  // Flag to select the operating mode.
+volatile bool confirmMode = true;                       // flag for the confirmatio of the selected mode by start button
 volatile bool displayTrackParcelsScreen = false;
 volatile bool displayRegisterParcelsScreen = false;
 volatile bool RFIDisOK = false;       // flag for RFID initialization
@@ -99,7 +109,9 @@ volatile bool initERROR = false;      // flag for error in any module
 volatile bool inTrackMode = false;    // flag for Identify the current working mode as Track mode
 volatile bool inRegisterMode = false; // flag for Identify the current working mode as Register mode
 volatile bool EnableSCAN = false;     // flag for turn on or Off RFID SCAN
-
+// variable for handle start button
+volatile bool isStartButtonPress = false;
+int start_button_press_count = 0;
 // strutures for external button interrupts
 struct Button
 {
@@ -111,6 +123,7 @@ Button MODE_SELECT_BUTTON = {33};
 Button SCAN_BUTTON = {};
 Button DEBUG_BUTTON = {};
 
+// Start button interrupt handler
 void IRAM_ATTR startButtonInterrupt()
 {
   button_time = millis();
@@ -118,7 +131,8 @@ void IRAM_ATTR startButtonInterrupt()
   {
     if (START && !SELECTMODE)
     {
-      continueWelcomeScreen = false;
+      isStartButtonPress = true;
+      start_button_press_count++;
     }
     if (START && SELECTMODE)
     {
@@ -157,27 +171,275 @@ void IRAM_ATTR scanButtonInterrupt()
   }
 }
 
+// Debug button interrupt handler
 void IRAM_ATTR debugButtonInterrupt()
 {
   button_time = millis();
   if (button_time - last_button_time > 250)
   {
-    if (debugButtonPressCount < 5)
-    {
-      debugButtonPressCount++;
-    }
-    else if (debugButtonPressCount = 5)
-    {
-      if (!DEBUGMODE)
-      {
-        DEBUGMODE = true;
-        Serial.begin(115200);
-        debugButtonPressCount = 0;
-      }
-    }
+    debugButtonPressed = true;
   }
 }
 
+//----------------------------------------------------------------------------------
+//-----------------DEBUG FUNCTIONS---------------------------------------------------------------
+void nonBlockingDelay(unsigned long ms)
+{
+  unsigned long start = millis();
+  while (millis() - start < ms)
+  {
+    yield(); // Yield to prevent WDT timeout
+  }
+}
+
+void ensureSerialMonitorActive()
+{
+  if (!Serial)
+  {
+    Serial.begin(115200);
+    while (!Serial)
+      ; // Wait for Serial to be ready
+  }
+}
+
+// function for waiting the users's serial monitor input
+bool waitForUserInput(unsigned long timeoutMillis, String &userInput)
+{
+  unsigned long startMillis = millis();
+  while (!Serial.available())
+  {
+    if (millis() - startMillis > timeoutMillis)
+    {
+      return false; // Timeout occurred
+    }
+    yield(); // Allow other tasks to run
+  }
+  userInput = Serial.readStringUntil('\n');
+  userInput.trim();
+  return true; // Input received
+}
+
+// function for test match the password
+bool promptForPassword()
+{
+  int passwordRetriesCount = 3; // Maximum retry attempts
+  unsigned long startMillis;
+
+  while (passwordRetriesCount > 0) // Loop as long as retries are available
+  {
+    ensureSerialMonitorActive();
+    Serial.println("Please enter the password:");
+
+    startMillis = millis();
+    while (!Serial.available())
+    {
+      if (millis() - startMillis > 10000) // 10-second timeout
+      {
+        Serial.println("No input detected. Exiting password prompt.");
+        return false; // Exit if no input within timeout
+      }
+    }
+
+    String passwordInput = Serial.readStringUntil('\n');
+    passwordInput.trim();
+
+    if (passwordInput.equals(correctPassword)) // Correct password entered
+    {
+      return true;
+    }
+    else // Incorrect password
+    {
+      passwordRetriesCount--; // Decrease the retry count
+      if (passwordRetriesCount > 0)
+      {
+        Serial.println("Incorrect Password. Please Try Again.");
+        Serial.println("Remaining Retries: " + String(passwordRetriesCount));
+        Serial.println();
+      }
+      else
+      {
+        Serial.println("Incorrect Password. No retries left.");
+      }
+    }
+  }
+
+  // Return false if all retries are exhausted
+  return false;
+}
+
+void promptForDebugDisable()
+{
+  ensureSerialMonitorActive();
+  Serial.println("Do you want to close debug mode? (YES/NO)");
+
+  unsigned long startMillis = millis();
+  while (!Serial.available())
+  {
+    if (millis() - startMillis > 10000) // 10-second timeout
+    {
+      Serial.println("No input detected. Continuing in debug mode.");
+      return; // Exit if no input within timeout
+    }
+  }
+
+  String userInput = Serial.readStringUntil('\n');
+  userInput.trim();
+
+  if (userInput.equalsIgnoreCase("YES"))
+  {
+    DEBUGMODE = false;
+    Serial.println("Debug mode is disabled.");
+    nonBlockingDelay(100);
+    Serial.flush();
+    Serial.end();
+  }
+  else
+  {
+    Serial.println("Continuing in debug mode.");
+  }
+}
+
+// function for check the debug button in start
+void checkForDebugModeInStart()
+{
+  ensureSerialMonitorActive();
+
+  // Checking only once for debug mode after detecting 5 presses
+  Serial.println("Do you want to start the device in debug mode? (YES/NO or Any)");
+
+  String userInput;
+  if (!waitForUserInput(10000, userInput))
+  {
+    // No input received within 10 seconds, proceed with default action
+    Serial.println("No input detected. Starting in default mode: Debug Mode disabled.");
+    debugModeInStart = false;     // Ensuring we continue without debug mode
+    start_button_press_count = 0; // Reset the start button press count
+    return;
+  }
+
+  if (userInput.equalsIgnoreCase("YES"))
+  {
+    Serial.println("You are going to start with debug mode.");
+    if (promptForPassword())
+    {
+      DEBUGMODE = true;
+      debugModeInStart = true; // Enabling debug mode as per user choice
+      Serial.println("Debug mode enabled.");
+    }
+    else
+    {
+      Serial.println("Debug mode not enabled.");
+      debugModeInStart = false; // Default to no debug mode
+    }
+  }
+  else
+  {
+    Serial.println("Continuing without debug mode.");
+    debugModeInStart = false; // Ensure no debug mode
+  }
+
+  // Reset the start button press count to prevent repeated prompts
+  start_button_press_count = 0;
+}
+
+// function for enable the debug mode in loop
+void handleDebugModeEnable()
+{
+  ensureSerialMonitorActive();
+
+  // Prevent multiple prompts for the same state
+  if (DEBUGMODE)
+    return;
+
+  Serial.println("Do you want to enable debug mode? (YES/NO or Any)");
+
+  String userInput;
+  if (!waitForUserInput(10000, userInput))
+  {
+    // Default action: continue without debug mode if no response
+    Serial.println("No input detected. Continuing without enabling debug mode.");
+    return;
+  }
+
+  if (userInput.equalsIgnoreCase("YES"))
+  {
+    Serial.println("You are going to enable debug mode.");
+    if (promptForPassword())
+    {
+      DEBUGMODE = true; // Enabling debug mode
+      Serial.println("Debug mode is enabled.");
+    }
+    else
+    {
+      Serial.println("Try again later.");
+    }
+  }
+  else
+  {
+    Serial.println("Continuing without debug mode.");
+  }
+
+  // Reset the button press count to prevent further prompts
+  start_button_press_count = 0;
+}
+
+// function for disable the debug mode in loop
+void handleDebugModeDisable()
+{
+  ensureSerialMonitorActive();
+  awaitingDebugDisableConfirmation = true;
+  Serial.println("Do you want to close debug mode? (YES/NO or Any)");
+
+  String userInput;
+  if (!waitForUserInput(10000, userInput))
+  { // 10-second timeout
+    // Default action: continue in debug mode
+    Serial.println("No input detected. Continuing in debug mode.");
+    awaitingDebugDisableConfirmation = false;
+    return;
+  }
+
+  if (userInput.equalsIgnoreCase("YES"))
+  {
+    DEBUGMODE = false;
+    awaitingDebugDisableConfirmation = false;
+    Serial.println("Debug mode is disabled.");
+    nonBlockingDelay(100);
+    Serial.flush();
+    Serial.end();
+  }
+  else
+  {
+    Serial.println("Continuing in debug mode.");
+    awaitingDebugDisableConfirmation = false;
+  }
+}
+
+//  function for handle the start button interrupt
+void startButtonHandle()
+{
+  if (isStartButtonPress)
+  {
+    isStartButtonPress = false;
+    ensureSerialMonitorActive();
+    Serial.printf("Start Button Press Count:", start_button_press_count);
+    Serial.flush();
+    while (millis() - button_time < 3000)
+    {
+      continueWelcomeScreen = true;
+      Serial.println("Checking for start button to enter the debug mode..");
+      Serial.println("Start Button Press Count:" + String(start_button_press_count));
+      if (start_button_press_count >= 5)
+      {
+        Serial.println("Start Button Press Count:" + String(start_button_press_count));
+        start_button_press_count = 0;
+        checkForDebugModeInStart();
+      }
+    }
+    continueWelcomeScreen = false;
+  }
+}
+//------------DEBUG functions end----------------------------------------------------------------
 // Function to Read and Store the MAC Address in deviceMAC variable.
 void readMACAddress()
 {
