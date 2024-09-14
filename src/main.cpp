@@ -1054,6 +1054,7 @@ void initRegisterParcelMode(void *pvParameters)
       initERROR = true;
     }
   }
+  delay(2000);
   RFIDisOK = true;
   initERROR = false;
   /*
@@ -1150,6 +1151,7 @@ void initTrackParcelMode(void *pvParameters)
       initERROR = true;
     }
   }
+  delay(2000);
   RFIDisOK = true;
   initERROR = false;
 
@@ -1164,6 +1166,7 @@ void initTrackParcelMode(void *pvParameters)
       initERROR = true;
     }
   }
+  delay(2000);
   MODEMisOK = true;
   initERROR = false;
 
@@ -1178,6 +1181,7 @@ void initTrackParcelMode(void *pvParameters)
       initERROR = true;
     }
   }
+  delay(2000);
   GPSisOK = true;
   initERROR = false;
 
