@@ -1056,26 +1056,26 @@ void initRegisterParcelMode(void *pvParameters)
   }
   RFIDisOK = true;
   initERROR = false;
-/*
-  // Initialize modem
-  if (!initializeModem())
-  {
-    Serial.println("Modem initialization failed. Halting execution.");
-    while (true)
+  /*
+    // Initialize modem
+    if (!initializeModem())
     {
-      indicateStatus(LED_MODEM, 1); // Indicate unable to connect
-      MODEMisOK = false;
-      initERROR = true;
+      Serial.println("Modem initialization failed. Halting execution.");
+      while (true)
+      {
+        indicateStatus(LED_MODEM, 1); // Indicate unable to connect
+        MODEMisOK = false;
+        initERROR = true;
+      }
     }
-  }
-  MODEMisOK = true;
-  initERROR = false;
+    MODEMisOK = true;
+    initERROR = false;
 
-  // Initialize GPRS
-  delay(5000);       // Must be removed in production, for testing only
-  GPRSisOK = true;   // Must be removed in production, for testing only
-  initERROR = false; // Must be removed in production, for testing only
-*/
+    // Initialize GPRS
+    delay(5000);       // Must be removed in production, for testing only
+    GPRSisOK = true;   // Must be removed in production, for testing only
+    initERROR = false; // Must be removed in production, for testing only
+  */
   // Set the working mode as Register
   if (RFIDisOK && /* MODEMisOK && GPRSisOK && */ !initERROR)
   {
@@ -1102,26 +1102,26 @@ void showRegisterParcelsScreen(void *pvParameters)
   while (!RFIDisOK && initERROR)
   {
     showInitializationError("RFID");
-  }/*
-  //-------------Modem---------------
-  while (!MODEMisOK && !initERROR)
-  {
-    displayInitializingProcess("Initializing MODEM", frame);
-  }
-  while (!MODEMisOK && initERROR)
-  {
-    showInitializationError("MODEM");
-  }
-  //--------------GPRS----------------
-  while (!GPRSisOK && !initERROR)
-  {
-    displayInitializingProcess("Initializing GPRS", frame);
-  }
-  while (!GPRSisOK && initERROR)
-  {
-    showInitializationError("GPRS");
-  }
-*/
+  } /*
+   //-------------Modem---------------
+   while (!MODEMisOK && !initERROR)
+   {
+     displayInitializingProcess("Initializing MODEM", frame);
+   }
+   while (!MODEMisOK && initERROR)
+   {
+     showInitializationError("MODEM");
+   }
+   //--------------GPRS----------------
+   while (!GPRSisOK && !initERROR)
+   {
+     displayInitializingProcess("Initializing GPRS", frame);
+   }
+   while (!GPRSisOK && initERROR)
+   {
+     showInitializationError("GPRS");
+   }
+ */
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
@@ -1361,7 +1361,23 @@ void setup()
   while (continueWelcomeScreen)
   {
     showWelcomeScreen();
+    while (!isStartButtonPress)
+    {
+      Serial.println("Device powered on, waiting for START button...");
+    }
+    startButtonHandle();
   }
+  if (!debugModeInStart)
+  {
+    // If not in debug mode, continue with normal startup
+    Serial.println("Starting device in normal mode...");
+  }
+  // have to uncomment below part in end of the testing...
+  /*
+  if(debugModeInStart){
+    Serial.end();
+  }
+  */
   SELECTMODE = true; // Allow mode selection
   showModeSelectionScreen();
 
