@@ -1056,7 +1056,7 @@ void initRegisterParcelMode(void *pvParameters)
   }
   RFIDisOK = true;
   initERROR = false;
-
+/*
   // Initialize modem
   if (!initializeModem())
   {
@@ -1075,9 +1075,9 @@ void initRegisterParcelMode(void *pvParameters)
   delay(5000);       // Must be removed in production, for testing only
   GPRSisOK = true;   // Must be removed in production, for testing only
   initERROR = false; // Must be removed in production, for testing only
-
+*/
   // Set the working mode as Register
-  if (RFIDisOK && MODEMisOK && GPRSisOK && !initERROR)
+  if (RFIDisOK && /* MODEMisOK && GPRSisOK && */ !initERROR)
   {
     inRegisterMode = true;
     inTrackMode = false;
@@ -1099,10 +1099,10 @@ void showRegisterParcelsScreen(void *pvParameters)
   {
     displayInitializingProcess("Initializing RFID", frame);
   }
-  while (!MODEMisOK && initERROR)
+  while (!RFIDisOK && initERROR)
   {
     showInitializationError("RFID");
-  }
+  }/*
   //-------------Modem---------------
   while (!MODEMisOK && !initERROR)
   {
@@ -1121,7 +1121,7 @@ void showRegisterParcelsScreen(void *pvParameters)
   {
     showInitializationError("GPRS");
   }
-
+*/
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
