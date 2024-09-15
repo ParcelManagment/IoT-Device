@@ -201,6 +201,14 @@ void ensureSerialMonitorActive()
       ; // Wait for Serial to be ready
   }
 }
+void ensureSerialMonitorClose()
+{
+  if (Serial)
+  {
+    Serial.flush();
+    Serial.end();
+  }
+}
 
 // function for waiting the users's serial monitor input
 bool waitForUserInput(unsigned long timeoutMillis, String &userInput)
@@ -1466,7 +1474,16 @@ void setup()
 
 void loop()
 {
-  // Fetch and print GPS data every 10 seconds
+
+  while (inTrackMode)
+  {
+    runTrackParcelMode();
+  }
+  while (inRegisterMode)
+  {
+    runRegisterParcelMode();
+  }
+  /*// Fetch and print GPS data every 10 seconds
   static unsigned long lastFetchTime = 0;
   if (millis() - lastFetchTime >= GPS_TIME_GAP)
   {
@@ -1475,8 +1492,31 @@ void loop()
   }
 
   // Add any other operations needed for your specific use case
-
+*/
   esp_task_wdt_reset(); // Reset the watchdog timer periodically
   testDisplay();        // Run the display function to test
   delay(2000);          // Wait before running the next test
+}
+
+void runRegisterParcelMode()
+{
+  String computerInput = "";
+  while (!Serial.available()) // getting START message from computer to turn on scanning on rfid
+  {
+    yield(); // Allow other tasks to run
+  }
+  computerInput = Serial.readStringUntil('\n');
+  computerInput.trim();
+
+  if (computerInput.equalsIgnoreCase("startREAD"))
+  {
+    if (initializeRFID)
+    {
+      handleCardDetection();
+    }
+  }
+}
+
+void runTrackParcelMode()
+{
 }
