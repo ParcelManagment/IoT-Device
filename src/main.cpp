@@ -101,14 +101,17 @@ volatile bool selectModeOption = true;                  // Flag to select the op
 volatile bool confirmMode = true;                       // flag for the confirmatio of the selected mode by start button
 volatile bool displayTrackParcelsScreen = false;
 volatile bool displayRegisterParcelsScreen = false;
-volatile bool RFIDisOK = false;       // flag for RFID initialization
-volatile bool MODEMisOK = false;      // flag for SIM808 initialization
-volatile bool GPRSisOK = false;       // flag for GPRS initialization
-volatile bool GPSisOK = false;        // flag for GPS initialization
-volatile bool initERROR = false;      // flag for error in any module
-volatile bool inTrackMode = false;    // flag for Identify the current working mode as Track mode
-volatile bool inRegisterMode = false; // flag for Identify the current working mode as Register mode
-volatile bool EnableSCAN = false;     // flag for turn on or Off RFID SCAN
+volatile bool RFIDisOK = false;                // flag for RFID initialization
+volatile bool MODEMisOK = false;               // flag for SIM808 initialization
+volatile bool GPRSisOK = false;                // flag for GPRS initialization
+volatile bool GPSisOK = false;                 // flag for GPS initialization
+volatile bool initERROR = false;               // flag for error in any module
+volatile bool inTrackMode = false;             // flag for Identify the current working mode as Track mode
+volatile bool inRegisterMode = false;          // flag for Identify the current working mode as Register mode
+volatile bool EnableSCAN = false;              // flag for turn on or Off RFID SCAN
+volatile bool GetParcelIDinTrackMode = false;  // flag for identify that parcels are get into train in tracking mode
+volatile bool DropParcelIDinTrackMode = false; // flag for identify that parcels are drop out from train in tracking mode
+
 // variable for handle start button
 volatile bool isStartButtonPress = false;
 int start_button_press_count = 0;
@@ -135,6 +138,10 @@ void IRAM_ATTR startButtonInterrupt()
       start_button_press_count++;
     }
     if (START && SELECTMODE)
+    {
+      confirmMode = false;
+    }
+    if (inTrackMode && EnableSCAN)
     {
       confirmMode = false;
     }
@@ -1313,6 +1320,56 @@ void showModeSelectionScreen()
   confirmMode = true;
   selectModeOption = true;
 }
+void showTrackingScanModeSelectionScreen()
+{
+  display.clearDisplay();
+  const char *line1 = "Please select mode";
+  const char *mode1 = "1. Get Parcels";
+  const char *mode2 = "2. Drop Parcels";
+  const char *confirmMessage = "Press START to confirm";
+  while (confirmMode)
+  {
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor((SCREEN_WIDTH - display.width()) / 2, 0);
+    display.println(line1);
+    // Display modes with indication of selection
+    if (selectModeOption)
+    {
+      display.setCursor((SCREEN_WIDTH - display.width()) / 2, 20);
+      display.println("> " + String(mode1)); // Indicate selection
+      display.setCursor((SCREEN_WIDTH - display.width()) / 2, 36);
+      display.println("  " + String(mode2));
+    }
+    else
+    {
+      display.setCursor((SCREEN_WIDTH - display.width()) / 2, 20);
+      display.println("  " + String(mode1));
+      display.setCursor((SCREEN_WIDTH - display.width()) / 2, 36);
+      display.println("> " + String(mode2)); // Indicate selection
+    }
+    // Display confirmation message
+    display.setCursor((SCREEN_WIDTH - display.width()) / 2, 56);
+    display.println(confirmMessage);
+    display.display();
+    delay(100); // Add a small delay for debouncing
+  }
+  // Set the screen flag based on the selected mode
+  if (selectModeOption)
+  {
+    GetParcelIDinTrackMode = true;
+    DropParcelIDinTrackMode = false;
+  }
+  else
+  {
+    DropParcelIDinTrackMode = true;
+    GetParcelIDinTrackMode = false;
+  }
+  // Reset flags for next operations
+  confirmMode = true;
+  selectModeOption = true;
+}
 
 //-----------------main running functions--------------------------------------
 void runRegisterParcelMode()
@@ -1339,6 +1396,7 @@ void runTrackParcelMode()
 {
   if (EnableSCAN)
   {
+    showTrackingScanModeSelectionScreen();
   }
   else
   {
