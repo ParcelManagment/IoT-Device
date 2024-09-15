@@ -1374,6 +1374,7 @@ void showTrackingScanModeSelectionScreen()
 //-----------------main running functions--------------------------------------
 void runRegisterParcelMode()
 {
+  // add "press sacn button..." function to display it on oled.
   bool isRFIDwork = false;
   if (EnableSCAN)
   {
@@ -1394,12 +1395,39 @@ void runRegisterParcelMode()
 
 void runTrackParcelMode()
 {
+  // add "press sacn button..." function to display it on oled.
   if (EnableSCAN)
   {
+    bool isRFIDwork = false;
+    if (EnableSCAN)
+    {
+      if (initializeRFID())
+      {
+        isRFIDwork = true;
+      }
+      else
+      {
+        isRFIDwork = false;
+      }
+    }
     showTrackingScanModeSelectionScreen();
+    while (EnableSCAN && isRFIDwork)
+    {
+      if (GetParcelIDinTrackMode)
+      {
+        handleCardDetection();
+        // must be add sendDropParcelIDtocloud()
+      }
+      if (DropParcelIDinTrackMode)
+      {
+        handleCardDetection();
+        // must be add sendDropParcelIDtocloud()
+      }
+    }
   }
   else
   {
+    // deep sleep mode functions
   }
 }
 
