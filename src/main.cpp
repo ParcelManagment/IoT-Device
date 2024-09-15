@@ -160,11 +160,11 @@ void IRAM_ATTR scanButtonInterrupt()
   button_time = millis();
   if (button_time - last_button_time > 250)
   {
-    if (START && inTrackMode)
+    if (inTrackMode)
     {
       // have to handle this function more reliable
     }
-    else if (START && inRegisterMode)
+    else if (inRegisterMode)
     {
       EnableSCAN = !EnableSCAN; // have to handle this function more reliable
     }
@@ -1313,20 +1313,21 @@ void showModeSelectionScreen()
 //-----------------main running functions--------------------------------------
 void runRegisterParcelMode()
 {
-  String computerInput = "";
-  while (!Serial.available()) // getting START message from computer to turn on scanning on rfid
+  bool isRFIDwork = false;
+  if (EnableSCAN)
   {
-    yield(); // Allow other tasks to run
-  }
-  computerInput = Serial.readStringUntil('\n');
-  computerInput.trim();
-
-  if (computerInput.equalsIgnoreCase("startREAD"))
-  {
-    if (initializeRFID)
+    if (initializeRFID())
     {
-      handleCardDetection();
+      isRFIDwork = true;
     }
+    else
+    {
+      isRFIDwork = false;
+    }
+  }
+  while (EnableSCAN && isRFIDwork)
+  {
+    handleCardDetection();
   }
 }
 
