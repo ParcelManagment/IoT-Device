@@ -151,6 +151,10 @@ void IRAM_ATTR modeSelectButtonInterrupt()
     {
       selectModeOption = !selectModeOption;
     }
+    if (EnableSCAN && inTrackMode)
+    {
+      selectModeOption = !selectModeOption;
+    }
     last_button_time = button_time;
   }
 }
@@ -1333,6 +1337,12 @@ void runRegisterParcelMode()
 
 void runTrackParcelMode()
 {
+  if (EnableSCAN)
+  {
+  }
+  else
+  {
+  }
 }
 
 void setup()
