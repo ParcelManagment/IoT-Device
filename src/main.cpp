@@ -1372,7 +1372,7 @@ void showTrackingScanModeSelectionScreen()
   selectModeOption = true;
 }
 
-// function for display "Press Scan Button..." in OLED display.
+// function for display "Press Scan Button..." in OLED display before press the SCAN BUTTOn.
 void showPressScanButtonOLED()
 {
   String data1 = "Press SCAN Button.";
@@ -1387,6 +1387,23 @@ void showPressScanButtonOLED()
   display.println(data2);
   display.display();
   delay(1000); // Wait before updating again
+}
+
+// function for display "Scan your RFID" in OLED
+void showScanYourRFIDinOLED()
+{
+  String data1 = "Scan Your RFIDs...";
+  String data2 = ""; // something can be add here to display in OLED..
+  // Update display
+  // display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(10, 25);
+  display.println(data1);
+  display.setCursor(50, 40);
+  display.println(data2);
+  display.display();
+  delay(500); // Wait before updating again
 }
 
 //-----------------main running functions--------------------------------------
