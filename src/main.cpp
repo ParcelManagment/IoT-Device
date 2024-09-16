@@ -1503,14 +1503,17 @@ void setup()
   if (!debugModeInStart)
   {
     // If not in debug mode, continue with normal startup
-    Serial.println("Starting device in normal mode...");
+
+    Serial.println("Starting device in normal mode...Serial Monitor will be closed.");
+    ensureSerialMonitorClose();
   }
   // have to uncomment below part in end of the testing...
   /*
-  if(debugModeInStart){
-    Serial.end();
+  if (debugModeInStart)
+  {
+    ensureSerialMonitorActive();
   }
-  */
+*/
   SELECTMODE = true; // Allow mode selection
   showModeSelectionScreen();
 
