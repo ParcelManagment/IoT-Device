@@ -1020,9 +1020,17 @@ void storeUID()
     }
     tagUID += String(rfid.uid.uidByte[i], HEX);
   }
-  ensureSerialMonitorActive();
-  Serial.print("RFID Tag ID stored: ");
-  Serial.println(tagUID);
+  if (debugModeInStart || DEBUGMODE)
+  {
+    ensureSerialMonitorActive();
+    Serial.print("RFID Tag ID stored: ");
+  }
+  if (!debugModeInStart || !DEBUGMODE)
+  {
+    ensureSerialMonitorActive();
+    Serial.println(tagUID);
+    ensureSerialMonitorClose();
+  }
 }
 
 // function for handle the RFID card.................................
@@ -1410,6 +1418,7 @@ void showScanYourRFIDinOLED()
 void runRegisterParcelMode()
 {
   // add "press sacn button..." function to display it on oled.
+  showPressScanButtonOLED();
   bool isRFIDwork = false;
   if (EnableSCAN)
   {
@@ -1424,6 +1433,7 @@ void runRegisterParcelMode()
   }
   while (EnableSCAN && isRFIDwork)
   {
+    showScanYourRFIDinOLED();
     handleCardDetection();
   }
 }
@@ -1431,6 +1441,7 @@ void runRegisterParcelMode()
 void runTrackParcelMode()
 {
   // add "press sacn button..." function to display it on oled.
+  showPressScanButtonOLED();
   if (EnableSCAN)
   {
     bool isRFIDwork = false;
@@ -1450,11 +1461,13 @@ void runTrackParcelMode()
     {
       if (GetParcelIDinTrackMode)
       {
+        showScanYourRFIDinOLED();
         handleCardDetection();
         // must be add sendDropParcelIDtocloud()
       }
       if (DropParcelIDinTrackMode)
       {
+        showScanYourRFIDinOLED();
         handleCardDetection();
         // must be add sendDropParcelIDtocloud()
       }
