@@ -1320,6 +1320,7 @@ void showModeSelectionScreen()
   confirmMode = true;
   selectModeOption = true;
 }
+// function for select scanning mode in tracking mode
 void showTrackingScanModeSelectionScreen()
 {
   display.clearDisplay();
@@ -1369,6 +1370,23 @@ void showTrackingScanModeSelectionScreen()
   // Reset flags for next operations
   confirmMode = true;
   selectModeOption = true;
+}
+
+// function for display "Press Scan Button..." in OLED display.
+void showPressScanButtonOLED()
+{
+  String data1 = "Press SCAN Button.";
+  String data2 = ""; // something can be add here to display in OLED..
+  // Update display
+  // display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(10, 25);
+  display.println(data1);
+  display.setCursor(50, 40);
+  display.println(data2);
+  display.display();
+  delay(1000); // Wait before updating again
 }
 
 //-----------------main running functions--------------------------------------
