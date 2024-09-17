@@ -126,6 +126,9 @@ Button MODE_SELECT_BUTTON = {33};
 Button SCAN_BUTTON = {};
 Button DEBUG_BUTTON = {};
 
+// function declarations
+void showScanSuccessMessegeOLED();
+
 // Start button interrupt handler
 void IRAM_ATTR startButtonInterrupt()
 {
@@ -1022,13 +1025,15 @@ void storeUID()
   }
   if (debugModeInStart || DEBUGMODE)
   {
+    showScanSuccessMessegeOLED();
     ensureSerialMonitorActive();
     Serial.print("RFID Tag ID stored: ");
   }
-  if (!debugModeInStart || !DEBUGMODE)
+  else
   {
     ensureSerialMonitorActive();
     Serial.println(tagUID);
+    showScanSuccessMessegeOLED();
     ensureSerialMonitorClose();
   }
 }
@@ -1402,6 +1407,22 @@ void showScanYourRFIDinOLED()
 {
   String data1 = "Scan Your RFIDs...";
   String data2 = ""; // something can be add here to display in OLED..
+  // Update display
+  // display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(10, 25);
+  display.println(data1);
+  display.setCursor(50, 40);
+  display.println(data2);
+  display.display();
+  delay(500); // Wait before updating again
+}
+
+void showScanSuccessMessegeOLED()
+{
+  String data1 = "Tag ID is scanned.";
+  String data2 = "Done!";
   // Update display
   // display.clearDisplay();
   display.setTextSize(1);
