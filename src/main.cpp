@@ -26,9 +26,9 @@
 #define MODEM_RX 16        // Connect to SIM808 TX
 #define MODEM_RST 5        // Optional, connect to SIM808 RST
 #define LED_MODEM 2        // LED pin for modem status indication
-#define LED_GPRS 4         // LED pin for GPRS status indication
+#define LED_GPRS 14        // LED pin for GPRS status indication
 #define LED_GPS 13         // LED pin for GPS status indication
-#define LED_RFID 31        // LED pin for RFID status indication
+#define LED_RFID 27        // LED pin for RFID status indication
 #define DisplayErrorLED 12 // LED pin for display status indication
 
 // RFID reader pins
@@ -1512,15 +1512,18 @@ void setup()
   pinMode(LED_GPRS, OUTPUT);
   pinMode(LED_GPS, OUTPUT);
   pinMode(LED_RFID, OUTPUT);
+  pinMode(DisplayErrorLED, OUTPUT);
   digitalWrite(LED_MODEM, HIGH);
   digitalWrite(LED_GPRS, HIGH);
   digitalWrite(LED_GPS, HIGH);
   digitalWrite(LED_RFID, HIGH);
-  delay(3000);
+  digitalWrite(DisplayErrorLED, HIGH);
+  delay(1500);
   digitalWrite(LED_MODEM, LOW);
   digitalWrite(LED_GPRS, LOW);
   digitalWrite(LED_GPS, LOW);
   digitalWrite(LED_RFID, LOW);
+  digitalWrite(DisplayErrorLED, LOW);
   // Initialize the serial communication at 115200 baud rate
   Serial.begin(115200); // Initialize the serial communication at 115200 baud rate
   while (!Serial)       // Wait for the serial port to connect (useful for some boards)
