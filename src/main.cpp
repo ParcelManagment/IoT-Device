@@ -605,8 +605,8 @@ void drawBatteryStatus()
   String status = String(level) + "%";
 
   // Draw the battery icon outline
-  display.drawRect(SCREEN_WIDTH - 26, 0, 24, 12, SSD1306_WHITE); // Battery rectangle
-  display.fillRect(SCREEN_WIDTH - 4, 2, 2, 8, SSD1306_WHITE);    // Battery tip
+  display.drawRect(SCREEN_WIDTH - 26, 0, 22, 12, SSD1306_WHITE); // Battery rectangle
+  display.fillRect(SCREEN_WIDTH - 4, 2, 3, 8, SSD1306_WHITE);    // Battery tip
 
   // Fill the battery level
   int batteryLevelWidth = map(level, 0, 100, 0, 20); // Map the battery level to a width
@@ -634,7 +634,7 @@ void drawSignalStatus()
   display.setTextSize(1);
   display.setCursor(33, 2);
   display.print(networkType);
-  delay(200); // Wait before updating again
+  delay(100); // Wait before updating again
 }
 
 // success
@@ -1030,6 +1030,7 @@ void storeUID()
     showScanSuccessMessegeOLED();
     ensureSerialMonitorActive();
     Serial.print("RFID Tag ID stored: ");
+    Serial.println(tagUID);
     showScanSuccessMessegeOLED();
   }
   else
@@ -1427,18 +1428,18 @@ void showScanYourRFIDinOLED()
 
 void showScanSuccessMessegeOLED()
 {
-  String data1 = "Tag ID is scanned.";
-  String data2 = "Done!";
+  String data1 = "Success!";
+  String data2 = "";
   // Update display
   display.clearDisplay();
-  display.setTextSize(1);
+  display.setTextSize(2);
   display.setTextColor(SSD1306_WHITE);
-  display.setCursor(10, 25);
+  display.setCursor(20, 25);
   display.println(data1);
   display.setCursor(50, 40);
   display.println(data2);
   display.display();
-  delay(500); // Wait before updating again
+  delay(300); // Wait before updating again
   display.clearDisplay();
 }
 
@@ -1466,6 +1467,10 @@ void runRegisterParcelMode()
   {
     showScanYourRFIDinOLED();
     handleCardDetection();
+    if (!EnableSCAN)
+    {
+      display.clearDisplay();
+    }
   }
 }
 
