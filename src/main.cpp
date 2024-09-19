@@ -17,7 +17,7 @@
 // LED Indicators
 #define CHARGING_PIN 13 // GPIO pin connected to CHRG pin of the charging module
 // Battery settings
-#define ADC_PIN 34
+#define ADC_PIN 35
 #define CONV_FACTOR 1.8
 #define READS 20
 //--------------------------------------------
@@ -25,8 +25,8 @@
 #define MODEM_TX 17        // Connect to SIM808 RX
 #define MODEM_RX 16        // Connect to SIM808 TX
 #define MODEM_RST 5        // Optional, connect to SIM808 RST
-#define LED_MODEM 2        // LED pin for modem status indication
-#define LED_GPRS 14        // LED pin for GPRS status indication
+#define LED_MODEM 14       // LED pin for modem status indication
+#define LED_GPRS 2         // LED pin for GPRS status indication
 #define LED_GPS 13         // LED pin for GPS status indication
 #define LED_RFID 27        // LED pin for RFID status indication
 #define DisplayErrorLED 12 // LED pin for display status indication
@@ -123,8 +123,8 @@ struct Button
 
 Button START_BUTTON = {32};
 Button MODE_SELECT_BUTTON = {33};
-Button SCAN_BUTTON = {};
-Button DEBUG_BUTTON = {};
+Button SCAN_BUTTON = {34};
+Button DEBUG_BUTTON = {25};
 
 // function declarations
 void showScanSuccessMessegeOLED();
@@ -182,6 +182,8 @@ void IRAM_ATTR scanButtonInterrupt()
     {
       EnableSCAN = !EnableSCAN; // have to handle this function more reliable
     }
+
+    last_button_time = button_time;
   }
 }
 
@@ -1028,6 +1030,7 @@ void storeUID()
     showScanSuccessMessegeOLED();
     ensureSerialMonitorActive();
     Serial.print("RFID Tag ID stored: ");
+    showScanSuccessMessegeOLED();
   }
   else
   {
@@ -1241,6 +1244,10 @@ void showTrackParcelsScreen(void *pvParameters)
 {
   int frame = 0;
   //----------Modem----------
+  while (!RFIDisOK && !initERROR)
+  {
+    displayInitializingProcess("Initializing RFID", frame);
+  }
   while (!MODEMisOK && !initERROR)
   {
     displayInitializingProcess("Initializing MODEM", frame);
@@ -1399,7 +1406,7 @@ void showPressScanButtonOLED()
   display.setCursor(50, 40);
   display.println(data2);
   display.display();
-  delay(1000); // Wait before updating again
+  // delay(1000); // Wait before updating again
 }
 
 // function for display "Scan your RFID" in OLED
@@ -1408,7 +1415,7 @@ void showScanYourRFIDinOLED()
   String data1 = "Scan Your RFIDs...";
   String data2 = ""; // something can be add here to display in OLED..
   // Update display
-  // display.clearDisplay();
+  display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
   display.setCursor(10, 25);
@@ -1416,7 +1423,6 @@ void showScanYourRFIDinOLED()
   display.setCursor(50, 40);
   display.println(data2);
   display.display();
-  delay(500); // Wait before updating again
 }
 
 void showScanSuccessMessegeOLED()
@@ -1424,7 +1430,7 @@ void showScanSuccessMessegeOLED()
   String data1 = "Tag ID is scanned.";
   String data2 = "Done!";
   // Update display
-  // display.clearDisplay();
+  display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
   display.setCursor(10, 25);
@@ -1433,13 +1439,17 @@ void showScanSuccessMessegeOLED()
   display.println(data2);
   display.display();
   delay(500); // Wait before updating again
+  display.clearDisplay();
 }
 
 //-----------------main running functions--------------------------------------
 void runRegisterParcelMode()
 {
   // add "press sacn button..." function to display it on oled.
-  showPressScanButtonOLED();
+  while (!EnableSCAN)
+  {
+    showPressScanButtonOLED();
+  }
   bool isRFIDwork = false;
   if (EnableSCAN)
   {
@@ -1462,8 +1472,11 @@ void runRegisterParcelMode()
 void runTrackParcelMode()
 {
   // add "press sacn button..." function to display it on oled.
-  showPressScanButtonOLED();
-  if (EnableSCAN)
+  while (!EnableSCAN)
+  {
+    showPressScanButtonOLED();
+  }
+  if (EnableSCAN) // have to handle this if  according to the sleep mode or not
   {
     bool isRFIDwork = false;
     if (EnableSCAN)
@@ -1652,7 +1665,7 @@ void setup()
       {
         for (;;)
         {
-          display.clearDisplay();
+          // display.clearDisplay();
           drawBatteryStatus();
           drawSignalStatus();
           showOperateMode();
