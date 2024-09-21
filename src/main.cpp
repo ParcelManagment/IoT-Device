@@ -193,7 +193,10 @@ void IRAM_ATTR debugButtonInterrupt()
   button_time = millis();
   if (button_time - last_button_time > 250)
   {
-    debugButtonPressed = true;
+    if (inRegisterMode && !EnableSCAN)
+    {
+      debugButtonPressed = true;
+    }
   }
 }
 
@@ -276,7 +279,9 @@ bool promptForPassword()
       passwordRetriesCount--; // Decrease the retry count
       if (passwordRetriesCount > 0)
       {
+        Serial.println();
         Serial.println("Incorrect Password. Please Try Again.");
+        Serial.println();
         Serial.println("Remaining Retries: " + String(passwordRetriesCount));
         Serial.println();
       }
@@ -463,6 +468,29 @@ void startButtonHandle()
     continueWelcomeScreen = false;
   }
 }
+
+// function for handle al debugs in register Parcel Mode
+void debugInRegisterMode()
+{
+  if (debugButtonPressed)
+  {
+    debugButtonPressed = false; // Reset the flag
+    if (!DEBUGMODE && !awaitingDebugDisableConfirmation)
+    {
+      handleDebugModeEnable();
+    }
+    else if (DEBUGMODE && !awaitingDebugDisableConfirmation)
+    {
+      handleDebugModeDisable();
+    }
+  }
+
+  if (DEBUGMODE)
+  {
+    ensureSerialMonitorActive();
+  }
+}
+
 //------------DEBUG functions end----------------------------------------------------------------
 // Function to Read and Store the MAC Address in deviceMAC variable.
 void readMACAddress()
@@ -1455,27 +1483,31 @@ void runRegisterParcelMode()
   while (!EnableSCAN)
   {
     showPressScanButtonOLED();
+    debugInRegisterMode();
   }
-  bool isRFIDwork = false;
-  if (EnableSCAN)
+  if (!debugButtonPressed)
   {
-    if (initializeRFID())
+    bool isRFIDwork = false;
+    if (EnableSCAN)
     {
-      isRFIDwork = true;
+      if (initializeRFID())
+      {
+        isRFIDwork = true;
+      }
+      else
+      {
+        isRFIDwork = false;
+      }
     }
-    else
+    display.clearDisplay();
+    while (EnableSCAN && isRFIDwork)
     {
-      isRFIDwork = false;
-    }
-  }
-  display.clearDisplay();
-  while (EnableSCAN && isRFIDwork)
-  {
-    showScanYourRFIDinOLED("");
-    handleCardDetection();
-    if (!EnableSCAN)
-    {
-      display.clearDisplay();
+      showScanYourRFIDinOLED("");
+      handleCardDetection();
+      if (!EnableSCAN)
+      {
+        display.clearDisplay();
+      }
     }
   }
 }
