@@ -1244,7 +1244,7 @@ void initTrackParcelMode(void *pvParameters)
 void showTrackParcelsScreen(void *pvParameters)
 {
   int frame = 0;
-  //----------Modem----------
+  //----------RFID----------
   while (!RFIDisOK && !initERROR)
   {
     displayInitializingProcess("Initializing RFID", frame);
@@ -1253,6 +1253,7 @@ void showTrackParcelsScreen(void *pvParameters)
   {
     showInitializationError("RFID");
   }
+  //-----------MODEM--------------
   while (!MODEMisOK && !initERROR)
   {
     displayInitializingProcess("Initializing MODEM", frame);
@@ -1420,12 +1421,12 @@ void showScanYourRFIDinOLED(String trackingMode)
   String data1 = "Scan Your RFIDs...";
   String data2 = trackingMode; // something can be add here to display in OLED..
   // Update display
-  display.clearDisplay();
+  // display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
   display.setCursor(10, 25);
   display.println(data1);
-  display.setCursor(10, 40);
+  display.setCursor(10, 50);
   display.println(data2);
   display.display();
 }
@@ -1467,6 +1468,7 @@ void runRegisterParcelMode()
       isRFIDwork = false;
     }
   }
+  display.clearDisplay();
   while (EnableSCAN && isRFIDwork)
   {
     showScanYourRFIDinOLED("");
@@ -1500,11 +1502,12 @@ void runTrackParcelMode()
       }
     }
     showTrackingScanModeSelectionScreen();
+    display.clearDisplay();
     while (EnableSCAN && isRFIDwork)
     {
       if (GetParcelIDinTrackMode)
       {
-        showScanYourRFIDinOLED("Get Parcels..");
+        showScanYourRFIDinOLED("Getting Parcels..");
         handleCardDetection();
         if (!EnableSCAN)
         {
@@ -1514,7 +1517,7 @@ void runTrackParcelMode()
       }
       if (DropParcelIDinTrackMode)
       {
-        showScanYourRFIDinOLED("Drop Parcels..");
+        showScanYourRFIDinOLED("Dropping Parcels..");
         handleCardDetection();
         if (!EnableSCAN)
         {
