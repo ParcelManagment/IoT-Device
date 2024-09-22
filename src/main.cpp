@@ -662,7 +662,6 @@ void drawSignalStatus()
   display.setTextSize(1);
   display.setCursor(33, 2);
   display.print(networkType);
-  delay(100); // Wait before updating again
 }
 
 // success
@@ -1722,7 +1721,7 @@ void setup()
           drawSignalStatus();
           showOperateMode();
           display.display();
-          vTaskDelay(pdMS_TO_TICKS(1000));
+          vTaskDelay(3000 / portTICK_PERIOD_MS);
         }
       },
       "BatteryDisplayTask",
