@@ -201,7 +201,7 @@ void IRAM_ATTR scanButtonInterrupt()
   {
     if (inTrackMode)
     {
-      // have to handle this function more reliable
+      EnableSCAN = !EnableSCAN; // have to handle this function more reliabl
     }
     else if (inRegisterMode)
     {
@@ -235,15 +235,15 @@ void printWakeupReason()
   {
   case ESP_SLEEP_WAKEUP_EXT0:
     coming_from_deep_sleep = true;
-    Serial.println("Wakeup caused by external signal (button press)  |bool state=" + String(coming_from_deep_sleep));
+    Serial.println("Wakeup caused by external signal (button press) | ( state= " + String(coming_from_deep_sleep) + " )");
     break;
   case ESP_SLEEP_WAKEUP_TIMER:
     coming_from_deep_sleep = true;
-    Serial.println("Wakeup caused by timer (10 minutes)" + String(coming_from_deep_sleep));
+    Serial.println("Wakeup caused by timer (10 minutes) | ( state= " + String(coming_from_deep_sleep) + " )");
     break;
   default:
     coming_from_deep_sleep = false;
-    Serial.println("Wakeup not caused by deep sleep" + String(coming_from_deep_sleep));
+    Serial.println("Wakeup not caused by deep sleep | ( state= " + String(coming_from_deep_sleep) + " )");
     break;
   }
 }
@@ -1792,6 +1792,33 @@ void setup()
   //---------------------------------------
   // end of the ""coming_from_deep_sleep"" checking condition above.
 
+  // Get current task handle for notification
+  setupTaskHandle = xTaskGetCurrentTaskHandle();
+
+  // Function for initialize component after wake up
+
+  if (coming_from_deep_sleep && inTrackMode)
+  { // Create display task for track parcels screen
+    xTaskCreate(
+        showTrackParcelsScreen,
+        "TrackDisplayTask",
+        2048,
+        NULL,
+        1,
+        &initTrackTaskHandle);
+
+    // Initialize track parcels mode
+    xTaskCreate(
+        initTrackParcelMode,
+        "InitTrackTask",
+        2048,
+        NULL,
+        1,
+        NULL);
+
+    // Wait for track parcels display task to complete
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+  }
   //------------Normal Functions--------------------
 
   xTaskCreatePinnedToCore(
@@ -1813,6 +1840,37 @@ void setup()
       1,
       NULL,
       1);
+
+  // If the wakeup is due to the button press, stay awake for 3 minutes
+  if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0)
+  {
+    Serial.println("Woke up due to button press, staying awake for defined time...");
+    formatGPSData();
+    uploadGPSDataWithRetry(3);
+
+    // Stay awake for the defined time (3 minutes in this case)
+    delay(WAKEUP_BUTTON_ON_TIME * 1000);
+
+    Serial.println("Going back to deep sleep after staying awake for button press duration...");
+  }
+  // If the wakeup is due to the timer, collect GPS data and upload
+  else if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER)
+  {
+    Serial.println("Waking up automatically after 10 minutes...");
+    formatGPSData();
+    uploadGPSDataWithRetry(3);
+  }
+
+  if (inTrackMode)
+  {
+    // Set wakeup sources: Timer (10 minutes) and External wakeup (button press)
+    esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * 1000000); // Convert seconds to microseconds for the timer
+    esp_sleep_enable_ext0_wakeup(GPIO_NUM_33, 0);           // Wake up on a LOW signal on wakeupButtonPin
+
+    Serial.println("Going to deep sleep now...");
+    delay(100);             // Small delay for serial print to complete
+    esp_deep_sleep_start(); // Enter deep sleep
+  }
 }
 
 void loop()
