@@ -1,4 +1,3 @@
-#include <Arduino.h>
 #include <TinyGsmClient.h>
 #include <string.h>
 #include <Wire.h>
@@ -8,7 +7,18 @@
 #include "Pangodream_18650_CL.h"
 #include <SPI.h>
 #include <MFRC522.h>
+#include <Arduino.h>
 #include <esp_system.h> // ESP-IDF system functions
+#include <esp_sleep.h>
+
+// Time to sleep after automatic GPS data collection (10 minutes)
+#define TIME_TO_SLEEP 60
+
+// Time to remain awake after wake-up button press (in seconds) - Set this for 3 minutes
+#define WAKEUP_BUTTON_ON_TIME 30
+
+// GPIO Pin Definitions
+#define wakeupButtonPin 33
 
 // OLED display dimensions
 #define SCREEN_WIDTH 128
@@ -21,10 +31,12 @@
 #define CONV_FACTOR 1.8
 #define READS 20
 //--------------------------------------------
+// define communication pins
+#define MODEM_TX 17 // Connect to SIM808 RX
+#define MODEM_RX 16 // Connect to SIM808 TX
+#define MODEM_RST 5 // Optional, connect to SIM808 RST
+
 // Define LED indication
-#define MODEM_TX 17        // Connect to SIM808 RX
-#define MODEM_RX 16        // Connect to SIM808 TX
-#define MODEM_RST 5        // Optional, connect to SIM808 RST
 #define LED_MODEM 14       // LED pin for modem status indication
 #define LED_GPRS 2         // LED pin for GPRS status indication
 #define LED_GPS 13         // LED pin for GPS status indication
@@ -42,6 +54,10 @@
 #define GPS_TIME_GAP 10000 // get gps data for each # of time gap
 
 //------------------------------------------------
+// bool variable for identify the sleep mode used or not
+RTC_DATA_ATTR bool coming_from_deep_sleep = false;
+
+//------------------------------------------------
 // Create an instance of the RFID reader
 MFRC522 rfid(SS_PIN, RST_PIN);
 // String to hold the RFID Tag ID
@@ -53,10 +69,15 @@ TinyGsm modem(modemSerial);
 Pangodream_18650_CL BL(ADC_PIN, CONV_FACTOR, READS);                      // object in Pangodreaam_18650_CL class
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET); // Object in Adafruit_SSD1306 class
 //------------------------------------------------
+// variables for LED blinkings
 const long intervalFast = 100;
 const long intervalSlow = 1000;
 unsigned long previousMillis = 0;
 int ledState = LOW;
+
+//------------------------------------------------
+// variable for hold the formatGPSDataString
+String formatGPSdataString;
 //------------------------------------------------
 // Global variables for signal strength and network type
 int signalStrength = 100;  // Example value
@@ -106,11 +127,15 @@ volatile bool MODEMisOK = false;               // flag for SIM808 initialization
 volatile bool GPRSisOK = false;                // flag for GPRS initialization
 volatile bool GPSisOK = false;                 // flag for GPS initialization
 volatile bool initERROR = false;               // flag for error in any module
-volatile bool inTrackMode = false;             // flag for Identify the current working mode as Track mode
-volatile bool inRegisterMode = false;          // flag for Identify the current working mode as Register mode
 volatile bool EnableSCAN = false;              // flag for turn on or Off RFID SCAN
 volatile bool GetParcelIDinTrackMode = false;  // flag for identify that parcels are get into train in tracking mode
 volatile bool DropParcelIDinTrackMode = false; // flag for identify that parcels are drop out from train in tracking mode
+
+//-------------------------------------------------------------------------------
+// save the current operating mode for the RTC module to wake up from that mode.
+RTC_DATA_ATTR bool inTrackMode = false;    // flag for Identify the current working mode as Track mode
+RTC_DATA_ATTR bool inRegisterMode = false; // flag for Identify the current working mode as Register mode
+//-------------------------------------------------------------------------------
 
 // variable for handle start button
 volatile bool isStartButtonPress = false;
@@ -201,6 +226,48 @@ void IRAM_ATTR debugButtonInterrupt()
 }
 
 //----------------------------------------------------------------------------------
+// Function to print the reason for ESP32 wake-up
+void printWakeupReason()
+{
+  esp_sleep_wakeup_cause_t wakeupReason = esp_sleep_get_wakeup_cause();
+
+  switch (wakeupReason)
+  {
+  case ESP_SLEEP_WAKEUP_EXT0:
+    coming_from_deep_sleep = true;
+    Serial.println("Wakeup caused by external signal (button press)  |bool state=" + String(coming_from_deep_sleep));
+    break;
+  case ESP_SLEEP_WAKEUP_TIMER:
+    coming_from_deep_sleep = true;
+    Serial.println("Wakeup caused by timer (10 minutes)" + String(coming_from_deep_sleep));
+    break;
+  default:
+    coming_from_deep_sleep = false;
+    Serial.println("Wakeup not caused by deep sleep" + String(coming_from_deep_sleep));
+    break;
+  }
+}
+
+// HAVE TO MODIFY
+//-------------------------------------------------------------------
+// function to well format the gps data to send
+String formatGPSData()
+{
+  Serial.println("Getting GPS data...");
+  // Implement GPS data retrieval here
+
+  return formatGPSdataString;
+}
+
+// HAVE TO MODIFY
+//-------------------------------------------------------------------
+// Function to upload GPS data with retries (placeholder)
+void uploadGPSDataWithRetry(int maxRetries)
+{
+  Serial.println("Uploading GPS data to cloud...");
+  // Implement upload and retry logic here
+}
+
 //-----------------DEBUG FUNCTIONS---------------------------------------------------------------
 void nonBlockingDelay(unsigned long ms)
 {
@@ -1571,6 +1638,7 @@ void setup()
   pinMode(MODE_SELECT_BUTTON.PIN, INPUT_PULLUP);
   pinMode(DEBUG_BUTTON.PIN, INPUT_PULLUP);
   pinMode(SCAN_BUTTON.PIN, INPUT_PULLUP);
+  pinMode(wakeupButtonPin, INPUT_PULLUP);
   // Initialize LED pins
   pinMode(LED_MODEM, OUTPUT);
   pinMode(LED_GPRS, OUTPUT);
@@ -1590,10 +1658,7 @@ void setup()
   digitalWrite(DisplayErrorLED, LOW);
   // Initialize the serial communication at 115200 baud rate
   Serial.begin(115200); // Initialize the serial communication at 115200 baud rate
-  while (!Serial)       // Wait for the serial port to connect (useful for some boards)
-  {
-    ; // wait for serial port to connect. Needed for native USB
-  }
+
   Serial.println("Serial Monitor Test is successed: Hello, World!");
 
   //-------------------------------------------------------------------------------------------
@@ -1606,110 +1671,128 @@ void setup()
   esp_task_wdt_init(300, true); // 60 seconds timeout
   esp_task_wdt_add(NULL);       // Add current thread to WDT
 
+  //-------------------------------------------------------------------------------------------
+  printWakeupReason();
+
   // Serial communication
   Wire.begin();
   int screenAddress = scanI2C();
   if (screenAddress == -1 || !initDisplay(screenAddress))
   {
-    Serial.println("Initialization failed, entering error loop...");
+    Serial.println("Display Initialization failed, entering error loop...");
     esp_task_wdt_reset(); // reset the watchdog timeout
-    for (;;)
+    if (!coming_from_deep_sleep)
     {
-      notifyUserAboutDisplayError("Warning: An error in display Initialization...Check the connections."); // Notify the user continuously
-      esp_task_wdt_reset();                                                                                // Reset watchdog to prevent system reset
+      for (;;)
+      {
+        notifyUserAboutDisplayError("Warning: An error in display Initialization...Check the connections."); // Notify the user continuously
+        esp_task_wdt_reset();                                                                                // Reset watchdog to prevent system reset
+      }
     }
+    Serial.println(" Device woke up; GPS processes will be executed. ");
+    indicateStatus(DisplayErrorLED, 1);
   }
 
   display.display();
-  delay(2000); // Pause for 2 seconds
+  delay(1000); // Pause for 2 seconds
   display.clearDisplay();
   testDisplay(); // Run the display function to test
   showBootScreen();
   display.clearDisplay();
-  START = true; // Allow button inputs
-  while (continueWelcomeScreen)
+
+  //---------------------------------------
+  // beginning of the ""coming_from_deep_sleep"" checking condition below.
+  if (!coming_from_deep_sleep)
   {
-    showWelcomeScreen();
-    while (!isStartButtonPress)
+    START = true; // Allow button inputs
+    while (continueWelcomeScreen)
     {
-      Serial.println("Device powered on, waiting for START button...");
+      showWelcomeScreen();
+      while (!isStartButtonPress)
+      {
+        Serial.println("Device powered on, waiting for START button...");
+      }
+      startButtonHandle();
     }
-    startButtonHandle();
+    if (!debugModeInStart)
+    {
+      // If not in debug mode, continue with normal startup
+
+      Serial.println("Starting device in normal mode...Serial Monitor will be closed.");
+      ensureSerialMonitorClose();
+    }
+    // have to uncomment below part in end of the testing...
+    /*
+    if (debugModeInStart)
+    {
+      ensureSerialMonitorActive();
+    }
+  */
+    SELECTMODE = true; // Allow mode selection
+    showModeSelectionScreen();
+
+    display.clearDisplay();
+
+    // Get current task handle for notification
+    setupTaskHandle = xTaskGetCurrentTaskHandle();
+
+    // Process based on selected mode
+    if (displayRegisterParcelsScreen)
+    {
+      // Create display task for register parcels screen
+      xTaskCreate(
+          showRegisterParcelsScreen,
+          "RegisterDisplayTask",
+          2048,
+          NULL,
+          1,
+          &initRegisterTaskHandle);
+
+      // Initialize register parcels mode
+      xTaskCreate(
+          initRegisterParcelMode,
+          "InitRegisterTask",
+          2048,
+          NULL,
+          1,
+          NULL);
+
+      // Wait for register parcels display task to complete
+      ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    }
+
+    if (displayTrackParcelsScreen)
+    {
+      // Create display task for track parcels screen
+      xTaskCreate(
+          showTrackParcelsScreen,
+          "TrackDisplayTask",
+          2048,
+          NULL,
+          1,
+          &initTrackTaskHandle);
+
+      // Initialize track parcels mode
+      xTaskCreate(
+          initTrackParcelMode,
+          "InitTrackTask",
+          2048,
+          NULL,
+          1,
+          NULL);
+
+      // Wait for track parcels display task to complete
+      ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    }
+
+    display.display();
+    delay(2000); // Pause for 2 seconds
+    display.clearDisplay();
   }
-  if (!debugModeInStart)
-  {
-    // If not in debug mode, continue with normal startup
+  //---------------------------------------
+  // end of the ""coming_from_deep_sleep"" checking condition above.
 
-    Serial.println("Starting device in normal mode...Serial Monitor will be closed.");
-    ensureSerialMonitorClose();
-  }
-  // have to uncomment below part in end of the testing...
-  /*
-  if (debugModeInStart)
-  {
-    ensureSerialMonitorActive();
-  }
-*/
-  SELECTMODE = true; // Allow mode selection
-  showModeSelectionScreen();
-
-  display.clearDisplay();
-
-  // Get current task handle for notification
-  setupTaskHandle = xTaskGetCurrentTaskHandle();
-
-  // Process based on selected mode
-  if (displayRegisterParcelsScreen)
-  {
-    // Create display task for register parcels screen
-    xTaskCreate(
-        showRegisterParcelsScreen,
-        "RegisterDisplayTask",
-        2048,
-        NULL,
-        1,
-        &initRegisterTaskHandle);
-
-    // Initialize register parcels mode
-    xTaskCreate(
-        initRegisterParcelMode,
-        "InitRegisterTask",
-        2048,
-        NULL,
-        1,
-        NULL);
-
-    // Wait for register parcels display task to complete
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-  }
-
-  if (displayTrackParcelsScreen)
-  {
-    // Create display task for track parcels screen
-    xTaskCreate(
-        showTrackParcelsScreen,
-        "TrackDisplayTask",
-        2048,
-        NULL,
-        1,
-        &initTrackTaskHandle);
-
-    // Initialize track parcels mode
-    xTaskCreate(
-        initTrackParcelMode,
-        "InitTrackTask",
-        2048,
-        NULL,
-        1,
-        NULL);
-
-    // Wait for track parcels display task to complete
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-  }
-
-  display.display();
-  delay(2000); // Pause for 2 seconds
-  display.clearDisplay();
+  //------------Normal Functions--------------------
 
   xTaskCreatePinnedToCore(
       [](void *arg)
