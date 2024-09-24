@@ -137,6 +137,15 @@ RTC_DATA_ATTR bool inTrackMode = false;    // flag for Identify the current work
 RTC_DATA_ATTR bool inRegisterMode = false; // flag for Identify the current working mode as Register mode
 //-------------------------------------------------------------------------------
 
+//-------------------------------------------------------------------------------
+// Variables for store GPS data
+int gpsRunTimeinMinute = 3;
+float latitude = 0.0, longitude = 0.0, altitude = 0.0, speed = 0.0, course = 0.0;
+float hdop = 0.0, pdop = 0.0, vdop = 0.0;
+int satellitesInView = 0, satellitesUsed = 0;
+
+//------------------------------------------------------------------------------
+
 // variable for handle start button
 volatile bool isStartButtonPress = false;
 int start_button_press_count = 0;
@@ -250,14 +259,6 @@ void printWakeupReason()
 
 // HAVE TO MODIFY
 //-------------------------------------------------------------------
-// function to well format the gps data to send
-String formatGPSData()
-{
-  Serial.println("Getting GPS data...");
-  // Implement GPS data retrieval here
-
-  return formatGPSdataString;
-}
 
 // HAVE TO MODIFY
 //-------------------------------------------------------------------
@@ -1100,6 +1101,28 @@ void fetchGPSData()
   }
 }
 
+String formatGPSData()
+{
+  char buffer[50];
+  String gpsString = "";
+  formatGPSdataString = "";
+  unsigned long startGPSRunTime = millis();
+
+  Serial.println("Getting GPS data...");
+  if (MODEMisOK && GPSisOK)
+  {
+
+    while (((millis() - startGPSRunTime) < gpsRunTimeinMinute * 60000))
+      fetchGPSData();
+  }
+
+  sprintf(buffer, "%.6f|%.6f|%.4f", latitude, longitude, speed);
+  gpsString = String(buffer);
+  formatGPSdataString = String(deviceMAC + "|location|" + gpsString);
+  Serial.println(formatGPSdataString);
+  return formatGPSdataString;
+}
+
 // RFID functions.....
 //.........................................................
 // function for store the Tag ID
@@ -1700,6 +1723,9 @@ void setup()
   showBootScreen();
   display.clearDisplay();
 
+  // get device MAC addres
+  readMACAddress();
+
   //---------------------------------------
   // beginning of the ""coming_from_deep_sleep"" checking condition below.
   if (!coming_from_deep_sleep)
@@ -1847,6 +1873,8 @@ void setup()
     Serial.println("Woke up due to button press, staying awake for defined time...");
     formatGPSData();
     uploadGPSDataWithRetry(3);
+
+    // have to create freeRTOS
 
     // Stay awake for the defined time (3 minutes in this case)
     delay(WAKEUP_BUTTON_ON_TIME * 1000);
