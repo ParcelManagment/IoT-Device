@@ -56,7 +56,7 @@
 //------------------------------------------------
 // bool variable for identify the sleep mode used or not
 RTC_DATA_ATTR bool coming_from_deep_sleep = false;
-
+int startSleepModeAfter = 3; // define the sleeping start time in minutes after waiting for RFID scanning
 //------------------------------------------------
 // Create an instance of the RFID reader
 MFRC522 rfid(SS_PIN, RST_PIN);
@@ -98,6 +98,11 @@ unsigned long last_button_time = 0;
 TaskHandle_t setupTaskHandle;
 TaskHandle_t initRegisterTaskHandle = NULL;
 TaskHandle_t initTrackTaskHandle = NULL;
+
+TaskHandle_t rfidTaskHandle = NULL;
+TaskHandle_t gpsTaskHandle = NULL;
+TaskHandle_t mainTaskHandle = NULL; // Handle for the main task (to control deep sleep)
+
 //-------------------------------------------
 
 // Loading animation frames
@@ -139,7 +144,7 @@ RTC_DATA_ATTR bool inRegisterMode = false; // flag for Identify the current work
 
 //-------------------------------------------------------------------------------
 // Variables for store GPS data
-int gpsRunTimeinMinute = 3;
+int gpsRunTimeinMinute = 1;
 float latitude = 0.0, longitude = 0.0, altitude = 0.0, speed = 0.0, course = 0.0;
 float hdop = 0.0, pdop = 0.0, vdop = 0.0;
 int satellitesInView = 0, satellitesUsed = 0;
@@ -674,7 +679,7 @@ void testDisplay()
   display.setCursor(50, 40);
   display.println(data2);
   display.display();
-  delay(2000); // Wait before updating again
+  delay(1000); // Wait before updating again
 }
 // Function for display the current operating mode
 void showOperateMode()
@@ -1115,7 +1120,7 @@ String formatGPSData()
     while (((millis() - startGPSRunTime) < gpsRunTimeinMinute * 60000))
       fetchGPSData();
   }
-
+  startGPSRunTime = 0;
   sprintf(buffer, "%.6f|%.6f|%.4f", latitude, longitude, speed);
   gpsString = String(buffer);
   formatGPSdataString = String(deviceMAC + "|location|" + gpsString);
@@ -1535,7 +1540,7 @@ void showPressScanButtonOLED()
 // function for display "Scan your RFID" in OLED
 void showScanYourRFIDinOLED(String trackingMode)
 {
-  String data1 = "Scan Your RFIDs...";
+  String data1 = "Place Your RFIDs...";
   String data2 = trackingMode; // something can be add here to display in OLED..
   // Update display
   // display.clearDisplay();
@@ -1565,10 +1570,32 @@ void showScanSuccessMessegeOLED()
   display.clearDisplay();
 }
 
+// function for display the count to sleep mode start
+void showSleepCountonOLED()
+{
+  int sleepCount = 3;
+  String sleepLine = "Entering Sleep Mode";
+
+  for (sleepCount = 3; sleepCount > 0; sleepCount--)
+  {
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(8, 10);
+    display.println(sleepLine);
+
+    display.setTextSize(3);
+    display.setCursor(55, 30);
+    display.println(String(sleepCount));
+    display.display();
+    delay(1000);
+  }
+}
+
 //-----------------main running functions--------------------------------------
 void runRegisterParcelMode()
 {
-  // add "press sacn button..." function to display it on oled.
+  // "press sacn button..." function to display it on oled.
   while (!EnableSCAN)
   {
     showPressScanButtonOLED();
@@ -1603,28 +1630,35 @@ void runRegisterParcelMode()
 
 void runTrackParcelMode()
 {
-  // add "press sacn button..." function to display it on oled.
-  while (!EnableSCAN)
+  Serial.println("Running Track Parcel Mode...");
+  unsigned long startTime = millis();    // Get the start time
+  unsigned long runTime = 3 * 60 * 1000; // 3 minutes in milliseconds
+
+  // Display "Press scan button..." on the OLED
+  while (!EnableSCAN && millis() - startTime < runTime)
   {
     showPressScanButtonOLED();
+    vTaskDelay(pdMS_TO_TICKS(100)); // Add a small delay to prevent tight looping
   }
-  if (EnableSCAN) // have to handle this if  according to the sleep mode or not
+
+  if (EnableSCAN && millis() - startTime < runTime)
   {
     bool isRFIDwork = false;
-    if (EnableSCAN)
+
+    // Initialize RFID
+    if (initializeRFID())
     {
-      if (initializeRFID())
-      {
-        isRFIDwork = true;
-      }
-      else
-      {
-        isRFIDwork = false;
-      }
+      isRFIDwork = true;
     }
+    else
+    {
+      isRFIDwork = false;
+    }
+
     showTrackingScanModeSelectionScreen();
     display.clearDisplay();
-    while (EnableSCAN && isRFIDwork)
+
+    while (EnableSCAN && isRFIDwork && millis() - startTime < runTime)
     {
       if (GetParcelIDinTrackMode)
       {
@@ -1634,24 +1668,53 @@ void runTrackParcelMode()
         {
           display.clearDisplay();
         }
-        // must be add sendDropParcelIDtocloud()
+        // Add sendDropParcelIDtoCloud() here
       }
+
       if (DropParcelIDinTrackMode)
       {
         showScanYourRFIDinOLED("Dropping Parcels..");
         handleCardDetection();
-        if (!EnableSCAN)
-        {
-          display.clearDisplay();
-        }
-        // must be add sendDropParcelIDtocloud()
+        // Add sendDropParcelIDtoCloud() here
       }
+
+      if (!EnableSCAN)
+      {
+        display.clearDisplay();
+      }
+
+      // Ensure this loop doesn't block the task scheduler too much
+      vTaskDelay(pdMS_TO_TICKS(100)); // Delay to yield CPU
     }
   }
-  else
-  {
-    // deep sleep mode functions
-  }
+
+  display.clearDisplay(); // Clear the display after RFID process
+  Serial.println("RFID task finished.");
+}
+
+//------------------------------------------------------
+//--------Functions for gps & upload to cloud when the wakeup from sleep
+void wakeupTaskForGPS(void *parameters)
+{
+  // Add display functions here if needed
+  Serial.println("Executing GPS task...");
+  formatGPSData();
+  uploadGPSDataWithRetry(3);
+
+  Serial.println("GPS task completed, deleting GPS task...");
+  vTaskDelete(NULL); // Delete this task after completion
+}
+
+void wakeupTaskForRFID(void *parameters)
+{
+  Serial.println("Executing RFID task...");
+  runTrackParcelMode(); // This function must signal when it is done
+
+  // Notify the main task (responsible for deep sleep) that RFID task is done
+  xTaskNotifyGive(mainTaskHandle);
+
+  Serial.println("RFID task completed, deleting RFID task...");
+  vTaskDelete(NULL); // Delete this task after completion
 }
 
 void setup()
@@ -1867,20 +1930,28 @@ void setup()
       NULL,
       1);
 
+  // Create the main task handle to allow notification for deep sleep
+  mainTaskHandle = xTaskGetCurrentTaskHandle();
+
   // If the wakeup is due to the button press, stay awake for 3 minutes
+  // Check for wakeup condition
   if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0)
   {
-    Serial.println("Woke up due to button press, staying awake for defined time...");
-    formatGPSData();
-    uploadGPSDataWithRetry(3);
+    Serial.println("Waking up due to button press...");
 
-    // have to create freeRTOS
+    // Create the two tasks for GPS and RFID
+    xTaskCreate(wakeupTaskForGPS, "GPS Task", 2048, NULL, 1, &gpsTaskHandle);
+    xTaskCreate(wakeupTaskForRFID, "RFID Task", 4096, NULL, 1, &rfidTaskHandle);
 
-    // Stay awake for the defined time (3 minutes in this case)
-    delay(WAKEUP_BUTTON_ON_TIME * 1000);
+    // Wait here until the RFID task signals that it's done
+    Serial.println("Waiting for RFID task to complete...");
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY); // Wait indefinitely for notification
 
-    Serial.println("Going back to deep sleep after staying awake for button press duration...");
+    // After RFID task completes, go to deep sleep
+    Serial.println("RFID task completed, going to deep sleep...");
+    esp_deep_sleep_start(); // Enter deep sleep
   }
+
   // If the wakeup is due to the timer, collect GPS data and upload
   else if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER)
   {
@@ -1895,6 +1966,7 @@ void setup()
     esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * 1000000); // Convert seconds to microseconds for the timer
     esp_sleep_enable_ext0_wakeup(GPIO_NUM_33, 0);           // Wake up on a LOW signal on wakeupButtonPin
 
+    showSleepCountonOLED();
     Serial.println("Going to deep sleep now...");
     delay(100);             // Small delay for serial print to complete
     esp_deep_sleep_start(); // Enter deep sleep
